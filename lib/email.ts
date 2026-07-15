@@ -199,3 +199,33 @@ export async function sendTicketUpdateEmail(
     })
   }
 }
+
+export async function sendTicketReminderEmail(
+  user: { email: string; name?: string | null; nickname?: string | null },
+  ticket: { id: string; title: string; createdAt: Date },
+  days: number
+): Promise<void> {
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
+  const greeting = user.nickname || user.name || 'Kedves Felhasználó'
+
+  await sendEmail({
+    to: user.email,
+    subject: `Emlékeztető: "${ticket.title}" – ${days} napja megoldatlan`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6C5CE7;">Emlékeztető – megoldatlan ticket</h2>
+        <p>Szia ${greeting},</p>
+        <p>Az alábbi ticket már <strong>${days} napja</strong> megoldatlan, és te vagy a felelőse:</p>
+        <div style="background:#fff8e1;border-left:4px solid #f39c12;padding:16px;border-radius:4px;margin:16px 0;">
+          <strong style="font-size:16px;">${ticket.title}</strong>
+          <p style="color:#888;font-size:13px;margin:6px 0 0;">Létrehozva: ${ticket.createdAt.toLocaleDateString('hu-HU')}</p>
+        </div>
+        <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          Ticket megtekintése
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+      </div>
+    `,
+  })
+}
