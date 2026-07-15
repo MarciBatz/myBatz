@@ -15,20 +15,20 @@ export async function POST(request: NextRequest) {
 
     const user = await prisma.user.findUnique({ where: { email } })
     if (!user || !user.passwordHash) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+      return NextResponse.json({ error: 'Hibás email cím vagy jelszó' }, { status: 401 })
     }
 
     if (user.status === 'DISABLED') {
-      return NextResponse.json({ error: 'Account disabled' }, { status: 403 })
+      return NextResponse.json({ error: 'Ez a fiók le van tiltva' }, { status: 403 })
     }
 
     if (user.status === 'INVITED') {
-      return NextResponse.json({ error: 'Account not activated. Check your invite email.' }, { status: 403 })
+      return NextResponse.json({ error: 'A fiók még nincs aktiválva. Ellenőrizd a meghívó emailt.' }, { status: 403 })
     }
 
     const valid = await verifyPassword(password, user.passwordHash)
     if (!valid) {
-      return NextResponse.json({ error: 'Invalid credentials' }, { status: 401 })
+      return NextResponse.json({ error: 'Hibás email cím vagy jelszó' }, { status: 401 })
     }
 
     const token = await createSession(user.id)
@@ -41,9 +41,9 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid input' }, { status: 400 })
+      return NextResponse.json({ error: 'Érvénytelen adatok' }, { status: 400 })
     }
     console.error('Login error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }
 }

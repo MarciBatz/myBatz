@@ -28,9 +28,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Invalid email' }, { status: 400 })
+      return NextResponse.json({ error: 'Érvénytelen email cím' }, { status: 400 })
     }
     console.error('Forgot password error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }
 }

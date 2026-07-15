@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     if (!invite) {
-      return NextResponse.json({ error: 'Invalid or expired invite' }, { status: 400 })
+      return NextResponse.json({ error: 'Érvénytelen vagy lejárt meghívó' }, { status: 400 })
     }
 
     const passwordHash = await hashPassword(password)
@@ -68,6 +68,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: error.issues[0]?.message || "Validation error" }, { status: 400 })
     }
     console.error('Invite activation error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }
 }

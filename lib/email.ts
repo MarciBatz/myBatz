@@ -49,17 +49,18 @@ export async function sendInviteEmail(
 
   await sendEmail({
     to: email,
-    subject: 'You have been invited to join the Helpdesk',
+    subject: 'Meghívtak a myBatz Beta rendszerbe',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6C5CE7;">You're invited!</h2>
-        <p><strong>${inviterName}</strong> has invited you to join the Helpdesk system.</p>
-        <p>Click the button below to accept the invitation and set up your account:</p>
+        <h2 style="color: #6C5CE7;">Meghívtak!</h2>
+        <p><strong>${inviterName}</strong> meghívott a myBatz Beta belső hibajegy-kezelő rendszerbe.</p>
+        <p>Kattints az alábbi gombra a meghívó elfogadásához és a fiókod beállításához:</p>
         <a href="${inviteUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
-          Accept Invitation
+          Meghívó elfogadása
         </a>
-        <p style="color:#666;font-size:14px;">This invitation link expires in 48 hours.</p>
-        <p style="color:#666;font-size:12px;">If the button doesn't work, copy this link: ${inviteUrl}</p>
+        <p style="color:#666;font-size:14px;">A meghívó link 48 óráig érvényes.</p>
+        <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${inviteUrl}</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
       </div>
     `,
   })
@@ -71,17 +72,18 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 
   await sendEmail({
     to: email,
-    subject: 'Reset your Helpdesk password',
+    subject: 'myBatz Beta – Jelszó visszaállítása',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6C5CE7;">Password Reset</h2>
-        <p>You requested a password reset for your Helpdesk account.</p>
-        <p>Click the button below to set a new password:</p>
+        <h2 style="color: #6C5CE7;">Jelszó visszaállítása</h2>
+        <p>Jelszó-visszaállítást kértek a myBatz Beta fiókodhoz.</p>
+        <p>Kattints az alábbi gombra az új jelszó beállításához:</p>
         <a href="${resetUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
-          Reset Password
+          Jelszó visszaállítása
         </a>
-        <p style="color:#666;font-size:14px;">This link expires in 1 hour. If you did not request this, you can safely ignore this email.</p>
-        <p style="color:#666;font-size:12px;">If the button doesn't work, copy this link: ${resetUrl}</p>
+        <p style="color:#666;font-size:14px;">A link 1 óráig érvényes. Ha nem te kérted, hagyd figyelmen kívül ezt az emailt.</p>
+        <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${resetUrl}</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
       </div>
     `,
   })

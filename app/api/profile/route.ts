@@ -28,13 +28,13 @@ export async function PATCH(request: NextRequest) {
 
     if (data.newPassword) {
       if (!data.currentPassword) {
-        return NextResponse.json({ error: 'Current password is required' }, { status: 400 })
+        return NextResponse.json({ error: 'A jelenlegi jelszó megadása kötelező' }, { status: 400 })
       }
       const dbUser = await prisma.user.findUnique({ where: { id: user.id } })
-      if (!dbUser?.passwordHash) return NextResponse.json({ error: 'No password set' }, { status: 400 })
+      if (!dbUser?.passwordHash) return NextResponse.json({ error: 'Nincs jelszó beállítva' }, { status: 400 })
 
       const valid = await verifyPassword(data.currentPassword, dbUser.passwordHash)
-      if (!valid) return NextResponse.json({ error: 'Current password is incorrect' }, { status: 400 })
+      if (!valid) return NextResponse.json({ error: 'A jelenlegi jelszó helytelen' }, { status: 400 })
 
       updateData.passwordHash = await hashPassword(data.newPassword)
     }

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     })
 
     if (!reset) {
-      return NextResponse.json({ error: 'Invalid or expired token' }, { status: 400 })
+      return NextResponse.json({ error: 'Érvénytelen vagy lejárt link' }, { status: 400 })
     }
 
     const passwordHash = await hashPassword(password)
@@ -60,9 +60,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ success: true })
   } catch (error) {
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: 'Password must be at least 8 characters' }, { status: 400 })
+      return NextResponse.json({ error: 'A jelszónak legalább 8 karakter hosszúnak kell lennie' }, { status: 400 })
     }
     console.error('Reset password error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }
 }
