@@ -87,9 +87,53 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
   })
 }
 
+const priorityLabels: Record<string, string> = {
+  LOW: 'Alacsony',
+  MEDIUM: 'Közepes',
+  HIGH: 'Magas',
+  CRITICAL: 'Kritikus',
+}
+
 export async function sendNewTicketEmail(
-  users: { email: string; name?: string | null }[],
-  ticket: { id: string; title: string; description: string; priority: string }
+  users: { email: string; name?: string | null; nickname?: string | null }[],
+  ticket: { id: string; title: string; description: string; priority: string },
+  createdBy: string
+): Promise<void> {
+  if (users.length === 0) return
+
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
+  const priorityLabel = priorityLabels[ticket.priority] || ticket.priority
+
+  for (const user of users) {
+    const greeting = user.nickname || user.name || 'Kedves Felhasználó'
+    await sendEmail({
+      to: user.email,
+      subject: `Új ticket: ${ticket.title}`,
+      html: `
+        <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+          <h2 style="color: #6C5CE7;">Új ticket érkezett</h2>
+          <p>Szia ${greeting},</p>
+          <p><strong>${createdBy}</strong> új ticketet hozott létre:</p>
+          <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
+            <strong style="font-size:16px;">${ticket.title}</strong>
+            <p style="color:#666;margin:8px 0;">${ticket.description.slice(0, 200)}${ticket.description.length > 200 ? '...' : ''}</p>
+            <span style="background:#6C5CE7;color:#fff;padding:2px 10px;border-radius:4px;font-size:12px;">Prioritás: ${priorityLabel}</span>
+          </div>
+          <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+            Ticket megtekintése
+          </a>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+        </div>
+      `,
+    })
+  }
+}
+
+export async function sendNewCommentEmail(
+  users: { email: string; name?: string | null; nickname?: string | null }[],
+  ticket: { id: string; title: string },
+  comment: { body: string; authorName: string }
 ): Promise<void> {
   if (users.length === 0) return
 
@@ -97,22 +141,23 @@ export async function sendNewTicketEmail(
   const ticketUrl = `${appUrl}/tickets/${ticket.id}`
 
   for (const user of users) {
+    const greeting = user.nickname || user.name || 'Kedves Felhasználó'
     await sendEmail({
       to: user.email,
-      subject: `New Ticket: ${ticket.title}`,
+      subject: `Új hozzászólás: ${ticket.title}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6C5CE7;">New Ticket Assigned</h2>
-          <p>Hi ${user.name || 'there'},</p>
-          <p>A new ticket has been assigned to you:</p>
+          <h2 style="color: #6C5CE7;">Új hozzászólás érkezett</h2>
+          <p>Szia ${greeting},</p>
+          <p><strong>${comment.authorName}</strong> hozzászólt egy tickethez amelynek te vagy a felelőse:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
-            <strong>${ticket.title}</strong>
-            <p style="color:#666;margin:8px 0 0;">${ticket.description.slice(0, 200)}${ticket.description.length > 200 ? '...' : ''}</p>
-            <span style="background:#6C5CE7;color:#fff;padding:2px 8px;border-radius:4px;font-size:12px;">${ticket.priority}</span>
+            <p style="color:#888;font-size:12px;margin:0 0 8px;">Ticket: <strong>${ticket.title}</strong></p>
+            <p style="margin:0;">${comment.body.slice(0, 300)}${comment.body.length > 300 ? '...' : ''}</p>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            View Ticket
+            Ticket megtekintése
           </a>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
         </div>
       `,
     })
@@ -120,7 +165,7 @@ export async function sendNewTicketEmail(
 }
 
 export async function sendTicketUpdateEmail(
-  users: { email: string; name?: string | null }[],
+  users: { email: string; name?: string | null; nickname?: string | null }[],
   ticket: { id: string; title: string },
   changes: string
 ): Promise<void> {
@@ -130,21 +175,23 @@ export async function sendTicketUpdateEmail(
   const ticketUrl = `${appUrl}/tickets/${ticket.id}`
 
   for (const user of users) {
+    const greeting = user.nickname || user.name || 'Kedves Felhasználó'
     await sendEmail({
       to: user.email,
-      subject: `Ticket Updated: ${ticket.title}`,
+      subject: `Ticket frissült: ${ticket.title}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6C5CE7;">Ticket Updated</h2>
-          <p>Hi ${user.name || 'there'},</p>
-          <p>A ticket you are following has been updated:</p>
+          <h2 style="color: #6C5CE7;">Ticket frissült</h2>
+          <p>Szia ${greeting},</p>
+          <p>Egy ticket amelyet követsz frissült:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
             <strong>${ticket.title}</strong>
             <p style="color:#666;margin:8px 0 0;">${changes}</p>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            View Ticket
+            Ticket megtekintése
           </a>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
         </div>
       `,
     })

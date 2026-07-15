@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireSession, requireReadWrite, unauthorizedResponse } from '@/lib/auth'
 import { sendNewTicketEmail } from '@/lib/email'
+import { displayName } from '@/lib/utils'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -113,15 +114,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Send notification to assignee
-    if (ticket.assignee) {
-      await sendNewTicketEmail([ticket.assignee], {
-        id: ticket.id,
-        title: ticket.title,
-        description: ticket.description,
-        priority: ticket.priority,
-      })
-    }
+    // Send notification to all ADMIN and AGENT users
+    const notifyUsers = await prisma.user.findMany({
+      where: { role: { in: ['ADMIN', 'AGENT'] }, status: 'ACTIVE' },
+      select: { id: true, email: true, name: true, nickname: true, firstName: true },
+    })
+    const creatorName = displayName(user)
+    await sendNewTicketEmail(notifyUsers, {
+      id: ticket.id,
+      title: ticket.title,
+      description: ticket.description,
+      priority: ticket.priority,
+    }, creatorName)
 
     return NextResponse.json({ ticket }, { status: 201 })
   } catch (error) {
