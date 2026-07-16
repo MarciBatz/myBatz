@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, getSessionFromRequest } from '@/lib/auth'
+import { sendRoleChangedEmail } from '@/lib/email'
 
 const schema = z.object({
   status: z.enum(['ACTIVE', 'DISABLED', 'INVITED']).optional(),
@@ -16,11 +17,20 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const data = schema.parse(body)
 
+    const existing = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true },
+    })
+
     const user = await prisma.user.update({
       where: { id },
       data,
-      select: { id: true, email: true, name: true, role: true, status: true, avatarUrl: true },
+      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true, status: true, avatarUrl: true },
     })
+
+    if (existing && data.role && data.role !== existing.role) {
+      await sendRoleChangedEmail(user, existing.role, data.role).catch(() => {})
+    }
 
     return NextResponse.json({ user })
   } catch (error) {

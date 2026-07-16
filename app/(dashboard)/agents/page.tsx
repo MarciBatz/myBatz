@@ -111,6 +111,15 @@ export default function AgentsPage() {
     loadUsers()
   }
 
+  async function changeRole(userId: string, newRole: string) {
+    await fetch(`/api/users/${userId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ role: newRole }),
+    })
+    loadUsers()
+  }
+
   async function toggleStatus(userId: string, currentStatus: string) {
     const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
     await fetch(`/api/users/${userId}`, {
@@ -184,13 +193,29 @@ export default function AgentsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-4">
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
-                      u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
-                      u.role === 'READER' ? 'bg-teal-100 text-teal-700' :
-                      'bg-gray-100 text-gray-600'
-                    }`}>
-                      {u.role === 'ADMIN' ? 'Adminisztrátor' : u.role === 'READER' ? 'Olvasó' : 'Felhasználó'}
-                    </span>
+                    {isAdmin && currentUser?.id !== u.id ? (
+                      <select
+                        value={u.role}
+                        onChange={e => changeRole(u.id, e.target.value)}
+                        className={`text-xs font-medium rounded-md px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer ${
+                          u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
+                          u.role === 'READER' ? 'bg-teal-100 text-teal-700' :
+                          'bg-gray-100 text-gray-600'
+                        }`}
+                      >
+                        <option value="AGENT">Felhasználó</option>
+                        <option value="ADMIN">Adminisztrátor</option>
+                        <option value="READER">Olvasó</option>
+                      </select>
+                    ) : (
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                        u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
+                        u.role === 'READER' ? 'bg-teal-100 text-teal-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {u.role === 'ADMIN' ? 'Adminisztrátor' : u.role === 'READER' ? 'Olvasó' : 'Felhasználó'}
+                      </span>
+                    )}
                   </td>
                   <td className="px-4 py-4">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${statusBadge(u.status)}`}>

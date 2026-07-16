@@ -300,3 +300,35 @@ export async function sendSlaBreachEmail(
     `,
   })
 }
+
+const roleLabels: Record<string, string> = {
+  ADMIN: 'Adminisztrátor',
+  AGENT: 'Felhasználó',
+  READER: 'Olvasó',
+}
+
+export async function sendRoleChangedEmail(
+  user: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  oldRole: string,
+  newRole: string
+): Promise<void> {
+  const greeting = user.nickname || user.firstName || user.name || 'Felhasználó'
+  await sendEmail({
+    to: user.email,
+    subject: 'myBatz Task – Szerepköröd megváltozott',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6C5CE7;">Szerepkör változás</h2>
+        <p>Szia ${greeting},</p>
+        <p>A myBatz Task rendszerben a szerepköröd megváltozott:</p>
+        <div style="background:#f8f7ff;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
+          <span style="color:#999;font-size:14px;">${roleLabels[oldRole] || oldRole}</span>
+          <span style="margin:0 10px;color:#6C5CE7;font-weight:bold;">→</span>
+          <span style="color:#6C5CE7;font-weight:bold;font-size:16px;">${roleLabels[newRole] || newRole}</span>
+        </div>
+        <p style="color:#666;font-size:14px;">Ha kérdésed van, lépj kapcsolatba az adminisztrátorral.</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+      </div>
+    `,
+  })
+}
