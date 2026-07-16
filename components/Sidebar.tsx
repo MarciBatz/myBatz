@@ -2,8 +2,14 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { fullDisplayName, displayName } from '@/lib/utils'
+
+const roleLabel: Record<string, string> = {
+  ADMIN: 'Adminisztrátor',
+  AGENT: 'Felhasználó',
+  READER: 'Olvasó',
+}
 
 const navItems = [
   {
@@ -21,6 +27,16 @@ const navItems = [
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+      </svg>
+    ),
+  },
+  {
+    href: '/notifications',
+    label: 'Értesítések',
+    badge: true,
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
       </svg>
     ),
   },
@@ -71,6 +87,24 @@ export default function Sidebar({ user }: SidebarProps) {
   const pathname = usePathname()
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    function fetchUnread() {
+      fetch('/api/notifications')
+        .then(r => r.json())
+        .then(d => setUnreadCount(d.unreadCount || 0))
+        .catch(() => {})
+    }
+    fetchUnread()
+    const interval = setInterval(fetchUnread, 30000)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Clear badge when visiting notifications page
+  useEffect(() => {
+    if (pathname === '/notifications') setUnreadCount(0)
+  }, [pathname])
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -108,7 +142,14 @@ export default function Sidebar({ user }: SidebarProps) {
             }`}
             style={isActive(item.href) ? { background: '#6C5CE7' } : {}}
           >
-            {item.icon}
+            <span className="relative">
+              {item.icon}
+              {item.badge && unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                  {unreadCount > 9 ? '9+' : unreadCount}
+                </span>
+              )}
+            </span>
             {item.label}
           </Link>
         ))}
@@ -117,19 +158,19 @@ export default function Sidebar({ user }: SidebarProps) {
       {/* User section */}
       <div className="p-3 border-t border-white/10">
         <div className="flex items-center gap-3 px-3 py-2.5 rounded-xl">
-          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0"
+          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-sm font-medium flex-shrink-0 overflow-hidden"
             style={{ background: '#6C5CE7' }}>
             {user.avatarUrl ? (
-              <img src={user.avatarUrl} alt="" className="w-full h-full rounded-full object-cover" />
+              <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
               (displayName(user) || user.email)[0].toUpperCase()
             )}
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-white text-sm font-medium truncate">{fullDisplayName(user) || user.email}</p>
-            <p className="text-white/40 text-xs truncate">{user.role}</p>
+            <p className="text-white/40 text-xs truncate">{roleLabel[user.role] || user.role}</p>
           </div>
-          <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors p-1 rounded" title="Sign out">
+          <button onClick={handleLogout} className="text-white/40 hover:text-white transition-colors p-1 rounded" title="Kijelentkezés">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
             </svg>
@@ -141,14 +182,21 @@ export default function Sidebar({ user }: SidebarProps) {
 
   return (
     <>
-      {/* Mobile hamburger */}
+      {/* Mobile hamburger — positioned to not overlap page header content */}
       <button
-        className="lg:hidden fixed top-4 left-4 z-50 p-2 rounded-xl bg-white shadow-md border border-gray-100"
+        className="lg:hidden fixed top-3 left-3 z-50 p-2 rounded-xl bg-white shadow-md border border-gray-100"
         onClick={() => setMobileOpen(!mobileOpen)}
+        aria-label="Menü"
       >
-        <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-        </svg>
+        {mobileOpen ? (
+          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        ) : (
+          <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        )}
       </button>
 
       {/* Mobile overlay */}

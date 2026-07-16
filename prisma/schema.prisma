@@ -153,5 +153,8 @@ model NotificationLog {
   ticketId String
   ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   type     String
+  message  String?
+  link     String?
+  read     Boolean  @default(false)
   sentAt   DateTime @default(now())
 }

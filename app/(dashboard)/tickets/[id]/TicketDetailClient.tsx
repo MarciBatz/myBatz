@@ -161,6 +161,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [savedReplies, setSavedReplies] = useState<{ id: string; title: string; body: string }[]>([])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null)
+  const [mentionStart, setMentionStart] = useState(0)
+  const textareaRef = useRef<HTMLTextAreaElement>(null)
 
   const loadTicket = useCallback(async () => {
     const r = await fetch(`/api/tickets/${ticketId}`)
@@ -285,7 +288,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   {c.isInternal && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Belső megjegyzés</span>}
                   <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(c.createdAt)}</span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">{c.body !== '(csatolmány)' ? c.body : ''}</p>
+                <p className="text-sm text-gray-700 whitespace-pre-wrap">
+                  {c.body !== '(csatolmány)' ? c.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `@${name}`) : ''}
+                </p>
                 {c.attachments.length > 0 && <FileList attachments={c.attachments} />}
               </div>
             ))}
@@ -314,13 +319,56 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   </select>
                 )}
 
-                <textarea
-                  rows={4}
-                  value={comment}
-                  onChange={e => setComment(e.target.value)}
-                  placeholder={isInternal ? 'Belső megjegyzés (csak az agenteknek látható)...' : 'Írj megjegyzést...'}
-                  className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none mb-3 ${isInternal ? 'border-amber-200 bg-amber-50 focus:border-amber-400' : 'border-gray-200 focus:border-indigo-400'}`}
-                />
+                <div className="relative mb-3">
+                  <textarea
+                    ref={textareaRef}
+                    rows={4}
+                    value={comment}
+                    onChange={e => {
+                      const val = e.target.value
+                      setComment(val)
+                      const pos = e.target.selectionStart
+                      const textBefore = val.slice(0, pos)
+                      const atIdx = textBefore.lastIndexOf('@')
+                      if (atIdx !== -1 && !textBefore.slice(atIdx).includes(' ')) {
+                        setMentionQuery(textBefore.slice(atIdx + 1))
+                        setMentionStart(atIdx)
+                      } else {
+                        setMentionQuery(null)
+                      }
+                    }}
+                    onKeyDown={e => { if (e.key === 'Escape') setMentionQuery(null) }}
+                    placeholder={isInternal ? 'Belső megjegyzés (csak az agenteknek látható)...' : 'Írj megjegyzést... (@névvel megemlíthetsz valakit)'}
+                    className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none ${isInternal ? 'border-amber-200 bg-amber-50 focus:border-amber-400' : 'border-gray-200 focus:border-indigo-400'}`}
+                  />
+                  {mentionQuery !== null && (
+                    <div className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
+                      {agents
+                        .filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())))
+                        .slice(0, 5)
+                        .map(a => (
+                          <button key={a.id} type="button"
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
+                            onMouseDown={e => {
+                              e.preventDefault()
+                              const name = displayName(a) || a.email
+                              const before = comment.slice(0, mentionStart)
+                              const after = comment.slice(textareaRef.current?.selectionStart || mentionStart)
+                              setComment(`${before}@[${name}](${a.id}) ${after}`)
+                              setMentionQuery(null)
+                            }}>
+                            <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ background: '#6C5CE7' }}>
+                              {(displayName(a) || a.email)[0].toUpperCase()}
+                            </span>
+                            <span>{displayName(a) || a.email}</span>
+                          </button>
+                        ))}
+                      {agents.filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase()))).length === 0 && (
+                        <p className="px-3 py-2 text-sm text-gray-400">Nincs találat</p>
+                      )}
+                    </div>
+                  )}
+                </div>
 
                 <div className="flex items-center justify-between gap-3">
                   <FileUploader onUploaded={setCommentAttachments} />

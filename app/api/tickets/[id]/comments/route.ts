@@ -18,6 +18,14 @@ const schema = z.object({
   attachments: z.array(attachmentSchema).optional(),
 })
 
+function extractMentions(body: string): string[] {
+  const matches = body.match(/@\[([^\]]+)\]\(([^)]+)\)/g) || []
+  return matches.map(m => {
+    const idMatch = m.match(/\(([^)]+)\)/)
+    return idMatch ? idMatch[1] : ''
+  }).filter(Boolean)
+}
+
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireReadWrite(request)
@@ -25,9 +33,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const body = await request.json()
     const data = schema.parse(body)
 
-    const ticket = await prisma.ticket.findUnique({ where: { id } })
+    const ticket = await prisma.ticket.findUnique({
+      where: { id },
+      include: {
+        createdBy: { select: { id: true, email: true, name: true, nickname: true } },
+        assignee: { select: { id: true, email: true, name: true, nickname: true } },
+      },
+    })
     if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
+      return NextResponse.json({ error: 'A ticket nem található' }, { status: 404 })
     }
 
     const comment = await prisma.comment.create({
@@ -64,29 +78,62 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
 
-    // Notify assignee if there is one and it's not an internal note
-    if (!data.isInternal && ticket.assigneeId && ticket.assigneeId !== user.id) {
-      const assignee = await prisma.user.findUnique({
-        where: { id: ticket.assigneeId },
-        select: { email: true, name: true, nickname: true },
-      })
-      if (assignee) {
-        await sendNewCommentEmail([assignee], { id, title: ticket.title }, {
-          body: data.body,
-          authorName: displayName(user),
+    const authorName = displayName(user)
+    const appUrl = process.env.APP_URL || 'http://localhost:3001'
+    const ticketLink = `/tickets/${id}`
+
+    if (!data.isInternal) {
+      // Collect unique users to notify: assignee + creator, excluding comment author
+      const toNotify = new Map<string, { id: string; email: string; name: string | null; nickname: string | null }>()
+      if (ticket.assignee && ticket.assignee.id !== user.id) toNotify.set(ticket.assignee.id, ticket.assignee)
+      if (ticket.createdBy && ticket.createdBy.id !== user.id) toNotify.set(ticket.createdBy.id, ticket.createdBy)
+
+      const notifyList = Array.from(toNotify.values())
+      if (notifyList.length > 0) {
+        await sendNewCommentEmail(notifyList, { id, title: ticket.title }, { body: data.body, authorName })
+        await prisma.notificationLog.createMany({
+          data: notifyList.map(u => ({
+            userId: u.id,
+            ticketId: id,
+            type: 'comment',
+            message: `${authorName} hozzászólt: "${ticket.title}"`,
+            link: ticketLink,
+          })),
+        })
+      }
+
+      // Handle @mentions
+      const mentionedIds = extractMentions(data.body)
+      if (mentionedIds.length > 0) {
+        const mentionedUsers = await prisma.user.findMany({
+          where: { id: { in: mentionedIds }, NOT: { id: user.id } },
+          select: { id: true, email: true, name: true, nickname: true },
+        })
+        // Send email + in-app notification to mentioned users not already notified
+        const alreadyNotified = new Set(notifyList.map(u => u.id))
+        const newMentions = mentionedUsers.filter(u => !alreadyNotified.has(u.id))
+        if (newMentions.length > 0) {
+          await sendNewCommentEmail(newMentions, { id, title: ticket.title }, { body: data.body, authorName })
+        }
+        await prisma.notificationLog.createMany({
+          data: mentionedUsers.map(u => ({
+            userId: u.id,
+            ticketId: id,
+            type: 'mention',
+            message: `${authorName} megemlített: "${ticket.title}"`,
+            link: ticketLink,
+          })),
         })
       }
     }
 
     return NextResponse.json({ comment }, { status: 201 })
   } catch (error) {
-    if (error instanceof Error && error.message === 'UNAUTHORIZED') {
-      return unauthorizedResponse()
-    }
+    if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     if (error instanceof z.ZodError) {
-      return NextResponse.json({ error: error.issues[0]?.message || "Validation error" }, { status: 400 })
+      return NextResponse.json({ error: error.issues[0]?.message || 'Érvénytelen adat' }, { status: 400 })
     }
     console.error('Comment POST error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }
 }

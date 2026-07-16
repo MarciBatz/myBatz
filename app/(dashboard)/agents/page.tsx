@@ -182,7 +182,7 @@ export default function AgentsPage() {
                       u.role === 'READER' ? 'bg-teal-100 text-teal-700' :
                       'bg-gray-100 text-gray-600'
                     }`}>
-                      {u.role === 'ADMIN' ? 'Admin' : u.role === 'READER' ? 'Olvasó' : 'Munkatárs'}
+                      {u.role === 'ADMIN' ? 'Adminisztrátor' : u.role === 'READER' ? 'Olvasó' : 'Felhasználó'}
                     </span>
                   </td>
                   <td className="px-4 py-4">
@@ -262,8 +262,8 @@ export default function AgentsPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Szerepkör</label>
                 <select value={inviteRole} onChange={e => setInviteRole(e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
-                  <option value="AGENT">Munkatárs</option>
-                  <option value="ADMIN">Admin</option>
+                  <option value="AGENT">Felhasználó</option>
+                  <option value="ADMIN">Adminisztrátor</option>
                   <option value="READER">Olvasó</option>
                 </select>
               </div>
