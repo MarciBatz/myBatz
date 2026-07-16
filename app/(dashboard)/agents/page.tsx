@@ -383,7 +383,7 @@ export default function AgentsPage() {
               </div>
               <p className="text-sm text-gray-600 mb-6">
                 Biztosan megváltoztatod <strong>{userName}</strong> szerepkörét{' '}
-                <strong>{oldRole}</strong>-ról <strong>{newRole}</strong>-re?
+                <strong>{oldRole}</strong>-ról <strong>{newRole}</strong>-ra?
               </p>
               <div className="flex justify-end gap-3">
                 <button onClick={() => setRoleChangeTarget(null)}
