@@ -127,7 +127,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (changes.length > 0) {
       const notifyUsers: { email: string; name?: string | null }[] = []
       if (ticket.assignee && ticket.assignee.id !== user.id) notifyUsers.push(ticket.assignee)
-      if (ticket.createdBy.id !== user.id && !notifyUsers.find(u => u.email === ticket.createdBy.email)) {
+      if (ticket.createdBy && ticket.createdBy.id !== user.id && !notifyUsers.find(u => u.email === ticket.createdBy!.email)) {
         notifyUsers.push(ticket.createdBy)
       }
 
