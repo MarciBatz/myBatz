@@ -6,6 +6,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDate, displayName } from '@/lib/utils'
+import RichTextEditor from '@/components/RichTextEditor'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
 
@@ -428,6 +429,7 @@ function CreateTicketModal({
     setError('')
     setLoading(true)
 
+    if (!description || description === '<p></p>') { setError('A leírás megadása kötelező'); setLoading(false); return }
     try {
       const res = await fetch('/api/tickets', {
         method: 'POST',
@@ -465,9 +467,7 @@ function CreateTicketModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Leírás</label>
-            <textarea required rows={4} value={description} onChange={e => setDescription(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 resize-none"
-              placeholder="Részletes leírás..." />
+            <RichTextEditor value={description} onChange={(html) => setDescription(html)} placeholder="Részletes leírás..." minHeight="120px" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

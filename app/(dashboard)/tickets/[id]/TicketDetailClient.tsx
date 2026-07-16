@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
@@ -162,8 +163,8 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
-  const [mentionStart, setMentionStart] = useState(0)
-  const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const [commentText, setCommentText] = useState('')
+  const editorRef = useRef<RichTextEditorHandle>(null)
 
   const loadTicket = useCallback(async () => {
     const r = await fetch(`/api/tickets/${ticketId}`)
@@ -190,7 +191,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
   async function submitComment(e: React.FormEvent) {
     e.preventDefault()
-    if (!comment.trim() && commentAttachments.length === 0) return
+    if (!commentText.trim() && commentAttachments.length === 0) return
     setSubmittingComment(true)
 
     const res = await fetch(`/api/tickets/${ticketId}/comments`, {
@@ -200,6 +201,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     })
     if (res.ok) {
       setComment('')
+      setCommentText('')
       setIsInternal(false)
       setCommentAttachments([])
       loadTicket()
@@ -270,7 +272,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 </p>
               </div>
             </div>
-            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-wrap">{ticket.description}</p>
+            <div className="prose text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: ticket.description }} />
             {ticket.attachments.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <p className="text-xs font-medium text-gray-500 mb-1">Csatolmányok</p>
@@ -289,9 +291,10 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   {c.isInternal && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Belső megjegyzés</span>}
                   <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(c.createdAt)}</span>
                 </div>
-                <p className="text-sm text-gray-700 whitespace-pre-wrap">
-                  {c.body !== '(csatolmány)' ? c.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `@${name}`) : ''}
-                </p>
+                {c.body !== '(csatolmány)' ? (
+                  <div className="prose text-sm text-gray-700"
+                    dangerouslySetInnerHTML={{ __html: c.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `<strong class="text-indigo-600">@${name}</strong>`) }} />
+                ) : null}
                 {c.attachments.length > 0 && <FileList attachments={c.attachments} />}
               </div>
             ))}
@@ -314,33 +317,28 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
                 {savedReplies.length > 0 && (
                   <select className="w-full px-3 py-1.5 border border-gray-200 rounded-lg text-sm mb-2 bg-white focus:outline-none focus:border-indigo-400"
-                    onChange={e => { if (e.target.value) setComment(e.target.value); e.target.value = '' }}>
+                    onChange={e => { if (e.target.value) { editorRef.current?.insertText(e.target.value) }; e.target.value = '' }}>
                     <option value="">Sablon válasz beillesztése...</option>
                     {savedReplies.map(r => <option key={r.id} value={r.body}>{r.title}</option>)}
                   </select>
                 )}
 
                 <div className="relative mb-3">
-                  <textarea
-                    ref={textareaRef}
-                    rows={4}
+                  <RichTextEditor
+                    editorRef={editorRef}
                     value={comment}
-                    onChange={e => {
-                      const val = e.target.value
-                      setComment(val)
-                      const pos = e.target.selectionStart
-                      const textBefore = val.slice(0, pos)
-                      const atIdx = textBefore.lastIndexOf('@')
-                      if (atIdx !== -1 && !textBefore.slice(atIdx).includes(' ')) {
-                        setMentionQuery(textBefore.slice(atIdx + 1))
-                        setMentionStart(atIdx)
+                    onChange={(html, text) => {
+                      setComment(html)
+                      setCommentText(text)
+                      const atIdx = text.lastIndexOf('@')
+                      if (atIdx !== -1 && !text.slice(atIdx).includes(' ') && text.slice(atIdx).length > 0) {
+                        setMentionQuery(text.slice(atIdx + 1))
                       } else {
                         setMentionQuery(null)
                       }
                     }}
-                    onKeyDown={e => { if (e.key === 'Escape') setMentionQuery(null) }}
                     placeholder={isInternal ? 'Belső megjegyzés (csak az agenteknek látható)...' : 'Írj megjegyzést... (@névvel megemlíthetsz valakit)'}
-                    className={`w-full px-3 py-2 border rounded-lg text-sm resize-none focus:outline-none ${isInternal ? 'border-amber-200 bg-amber-50 focus:border-amber-400' : 'border-gray-200 focus:border-indigo-400'}`}
+                    minHeight="100px"
                   />
                   {mentionQuery !== null && (
                     <div className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
@@ -353,9 +351,15 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                             onMouseDown={e => {
                               e.preventDefault()
                               const name = displayName(a) || a.email
-                              const before = comment.slice(0, mentionStart)
-                              const after = comment.slice(textareaRef.current?.selectionStart || mentionStart)
-                              setComment(`${before}@[${name}](${a.id}) ${after}`)
+                              const currentText = editorRef.current?.getText() ?? ''
+                              const atIdx = currentText.lastIndexOf('@')
+                              const textBefore = currentText.slice(0, atIdx)
+                              const mentionTag = `@[${name}](${a.id}) `
+                              editorRef.current?.insertText(mentionTag)
+                              setComment(prev => {
+                                const beforeAt = prev.lastIndexOf('@' + mentionQuery)
+                                return beforeAt !== -1 ? prev.slice(0, beforeAt) + mentionTag + prev.slice(beforeAt + 1 + mentionQuery.length) : prev
+                              })
                               setMentionQuery(null)
                             }}>
                             <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ background: '#6C5CE7' }}>
@@ -373,7 +377,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
                 <div className="flex items-center justify-between gap-3">
                   <FileUploader onUploaded={setCommentAttachments} />
-                  <button type="submit" disabled={submittingComment || (!comment.trim() && commentAttachments.length === 0)}
+                  <button type="submit" disabled={submittingComment || (!commentText.trim() && commentAttachments.length === 0)}
                     className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60 flex-shrink-0"
                     style={{ background: '#6C5CE7' }}>
                     {submittingComment ? 'Küldés...' : 'Küldés'}
