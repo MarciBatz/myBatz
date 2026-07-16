@@ -262,3 +262,40 @@ export async function sendNudgeEmail(
     `,
   })
 }
+
+export async function sendSlaBreachEmail(
+  user: { email: string; name?: string | null; nickname?: string | null },
+  ticket: { id: string; title: string },
+  type: 'no_response' | 'unassigned'
+): Promise<void> {
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
+  const greeting = user.nickname || user.name || 'Kedves Felhasználó'
+
+  const subject = type === 'no_response'
+    ? `48 órája nem reagáltál: "${ticket.title}"`
+    : `48 órája gazdátlan feladat: "${ticket.title}"`
+
+  const body = type === 'no_response'
+    ? `<p>Az alábbi feladatra <strong>48 órája nem reagáltál</strong>, pedig te vagy a felelőse. Kérjük, nézd meg és frissítsd az állapotát.</p>`
+    : `<p>Az alábbi feladatot <strong>48 órája senki sem vette fel magának</strong>. Kérjük, rendelj hozzá felelőst, vagy vállald el magad.</p>`
+
+  await sendEmail({
+    to: user.email,
+    subject,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #e17055;">Válaszidő figyelmeztetés</h2>
+        <p>Szia ${greeting},</p>
+        ${body}
+        <div style="background:#fff0f0;border-left:4px solid #e17055;padding:16px;border-radius:4px;margin:16px 0;">
+          <strong style="font-size:16px;">${ticket.title}</strong>
+        </div>
+        <a href="${ticketUrl}" style="display:inline-block;background:#e17055;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          Ticket megtekintése
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+      </div>
+    `,
+  })
+}
