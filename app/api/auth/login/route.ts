@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { verifyPassword, createSession, getSessionCookieOptions } from '@/lib/auth'
+import { writeAuditLog } from '@/lib/audit'
 
 const loginSchema = z.object({
   email: z.string().email(),
@@ -32,6 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     const token = await createSession(user.id)
+    await writeAuditLog(user.id, 'login', user.email, request)
 
     const response = NextResponse.json({
       user: { id: user.id, email: user.email, name: user.name, role: user.role },

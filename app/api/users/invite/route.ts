@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, generateToken, hashToken } from '@/lib/auth'
 import { sendInviteEmail } from '@/lib/email'
+import { writeAuditLog } from '@/lib/audit'
 
 const schema = z.object({
   email: z.string().email(),
@@ -44,6 +45,7 @@ export async function POST(request: NextRequest) {
       await sendInviteEmail(email, token, inviterName, inviteeName)
     }
 
+    await writeAuditLog(adminUser.id, 'user_invited', `${email} (${role || 'AGENT'})`, request)
     return NextResponse.json({ success: true, inviteLink, emailSent: !!shouldSendEmail }, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()

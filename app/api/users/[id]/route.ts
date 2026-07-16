@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, getSessionFromRequest } from '@/lib/auth'
 import { sendRoleChangedEmail } from '@/lib/email'
+import { writeAuditLog } from '@/lib/audit'
 
 const schema = z.object({
   status: z.enum(['ACTIVE', 'DISABLED', 'INVITED']).optional(),
@@ -19,7 +20,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existing = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true },
+      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true, status: true },
     })
 
     const user = await prisma.user.update({
@@ -30,6 +31,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (existing && data.role && data.role !== existing.role) {
       await sendRoleChangedEmail(user, existing.role, data.role).catch(() => {})
+      await writeAuditLog(id, 'role_changed', `${existing.role} → ${data.role}`, request)
+    }
+    if (data.status && existing && data.status !== existing.status) {
+      await writeAuditLog(id, 'status_changed', data.status, request)
     }
 
     return NextResponse.json({ user })
@@ -55,6 +60,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!target) return NextResponse.json({ error: 'Felhasználó nem található' }, { status: 404 })
 
     await prisma.user.delete({ where: { id } })
+    await writeAuditLog(admin.id, 'user_deleted', `${target.email}`, request)
 
     return NextResponse.json({ success: true })
   } catch (error) {

@@ -5,7 +5,23 @@ import Avatar from '@/components/Avatar'
 import { formatDate, displayName } from '@/lib/utils'
 
 interface AgentUser {
-  id: string; email: string; name: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string
+  id: string; email: string; name: string | null; firstName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
+}
+
+const ONLINE_THRESHOLD_MS = 2 * 60 * 1000 // 2 perc
+
+function isOnline(lastSeenAt: string | null): boolean {
+  if (!lastSeenAt) return false
+  return Date.now() - new Date(lastSeenAt).getTime() < ONLINE_THRESHOLD_MS
+}
+
+function formatLastSeen(lastSeenAt: string | null): string {
+  if (!lastSeenAt) return 'Soha'
+  const diff = Date.now() - new Date(lastSeenAt).getTime()
+  if (diff < ONLINE_THRESHOLD_MS) return 'Most online'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} perce`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} órája`
+  return `${Math.floor(diff / 86400000)} napja`
 }
 
 export default function AgentsPage() {
@@ -184,6 +200,7 @@ export default function AgentsPage() {
                 <th className="px-5 py-3 font-medium">Munkatárs</th>
                 <th className="px-4 py-3 font-medium">Szerepkör</th>
                 <th className="px-4 py-3 font-medium">Státusz</th>
+                <th className="px-4 py-3 font-medium">Utoljára aktív</th>
                 <th className="px-4 py-3 font-medium">Csatlakozott</th>
                 {isAdmin && <th className="px-4 py-3 font-medium">Műveletek</th>}
               </tr>
@@ -193,7 +210,7 @@ export default function AgentsPage() {
                 <tr key={u.id} className="hover:bg-gray-50/50">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <Avatar name={u.name} email={u.email} avatarUrl={u.avatarUrl} size="md" />
+                      <Avatar name={u.name} firstName={u.firstName} nickname={u.nickname} email={u.email} avatarUrl={u.avatarUrl} size="md" online={isOnline(u.lastSeenAt)} />
                       <div>
                         <p className="text-sm font-medium text-gray-900">{displayName(u) || '—'}</p>
                         <p className="text-xs text-gray-400">{u.email}</p>
@@ -228,6 +245,11 @@ export default function AgentsPage() {
                   <td className="px-4 py-4">
                     <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${statusBadge(u.status)}`}>
                       {statusLabel[u.status] || u.status}
+                    </span>
+                  </td>
+                  <td className="px-4 py-4">
+                    <span className={`text-xs font-medium ${isOnline(u.lastSeenAt) ? 'text-green-600' : 'text-gray-400'}`}>
+                      {formatLastSeen(u.lastSeenAt)}
                     </span>
                   </td>
                   <td className="px-4 py-4">

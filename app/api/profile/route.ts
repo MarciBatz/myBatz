@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireSession, unauthorizedResponse, hashPassword, verifyPassword } from '@/lib/auth'
+import { writeAuditLog } from '@/lib/audit'
 
 const schema = z.object({
   name: z.string().optional(),
@@ -44,6 +45,11 @@ export async function PATCH(request: NextRequest) {
       data: updateData,
       select: { id: true, email: true, name: true, lastName: true, firstName: true, nickname: true, role: true, status: true, avatarUrl: true },
     })
+
+    const details: string[] = []
+    if (data.name !== undefined || data.lastName !== undefined || data.firstName !== undefined || data.nickname !== undefined || data.avatarUrl !== undefined) details.push('profil adatok')
+    if (data.newPassword) details.push('jelszó')
+    await writeAuditLog(user.id, 'profile_updated', details.join(', '), request)
 
     return NextResponse.json({ user: updated })
   } catch (error) {

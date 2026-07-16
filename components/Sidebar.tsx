@@ -5,6 +5,18 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
 import { fullDisplayName, displayName } from '@/lib/utils'
 
+const adminNavItems = [
+  {
+    href: '/audit',
+    label: 'Audit napló',
+    icon: (
+      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+]
+
 const roleLabel: Record<string, string> = {
   ADMIN: 'Adminisztrátor',
   AGENT: 'Felhasználó',
@@ -80,7 +92,7 @@ const navItems = [
 ]
 
 interface SidebarProps {
-  user: { name?: string | null; lastName?: string | null; firstName?: string | null; nickname?: string | null; email: string; role: string; avatarUrl?: string | null }
+  user: { id: string; name?: string | null; lastName?: string | null; firstName?: string | null; nickname?: string | null; email: string; role: string; avatarUrl?: string | null }
 }
 
 export default function Sidebar({ user }: SidebarProps) {
@@ -88,6 +100,15 @@ export default function Sidebar({ user }: SidebarProps) {
   const router = useRouter()
   const [mobileOpen, setMobileOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    function sendHeartbeat() {
+      fetch('/api/auth/heartbeat', { method: 'POST' }).catch(() => {})
+    }
+    sendHeartbeat()
+    const interval = setInterval(sendHeartbeat, 60000)
+    return () => clearInterval(interval)
+  }, [])
 
   useEffect(() => {
     function fetchUnread() {
@@ -149,6 +170,29 @@ export default function Sidebar({ user }: SidebarProps) {
             {item.label}
           </Link>
         ))}
+        {user.role === 'ADMIN' && (
+          <>
+            <div className="pt-2 pb-1 px-3">
+              <span className="text-white/30 text-[10px] uppercase tracking-widest font-semibold">Admin</span>
+            </div>
+            {adminNavItems.map(item => (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
+                  isActive(item.href)
+                    ? 'text-white'
+                    : 'text-white/60 hover:text-white hover:bg-white/5'
+                }`}
+                style={isActive(item.href) ? { background: '#6C5CE7' } : {}}
+              >
+                {item.icon}
+                {item.label}
+              </Link>
+            ))}
+          </>
+        )}
       </nav>
 
       {/* Help / docs button */}

@@ -44,6 +44,7 @@ model User {
   role         Role       @default(AGENT)
   avatarUrl    String?
   status       UserStatus @default(INVITED)
+  lastSeenAt   DateTime?
   createdAt    DateTime   @default(now())
 
   ticketsCreated  Ticket[]          @relation("CreatedBy")
@@ -52,6 +53,7 @@ model User {
   activities      ActivityLog[]
   notifications   NotificationLog[]
   savedReplies    SavedReply[]
+  auditLogs       AuditLog[]
 }
 
 model Invite {
@@ -145,6 +147,16 @@ model SavedReply {
   createdById String?
   createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action    String
+  detail    String?
+  ip        String?
+  createdAt DateTime @default(now())
 }
 
 model NotificationLog {
