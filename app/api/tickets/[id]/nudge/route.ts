@@ -22,6 +22,17 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     await sendNudgeEmail(ticket.assignee, { id, title: ticket.title }, displayName(user))
 
+    const assigneeName = displayName(ticket.assignee)
+
+    await prisma.activityLog.create({
+      data: {
+        ticketId: id,
+        userId: user.id,
+        action: 'nudge_sent',
+        newValue: assigneeName,
+      },
+    })
+
     await prisma.notificationLog.create({
       data: {
         userId: ticket.assignee.id,

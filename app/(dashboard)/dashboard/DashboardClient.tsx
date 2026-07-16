@@ -94,6 +94,10 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   // Create ticket modal
   const [showCreate, setShowCreate] = useState(false)
 
+  // Nudge confirm
+  const [nudgeTarget, setNudgeTarget] = useState<{ ticketId: string; ticketTitle: string; assigneeName: string } | null>(null)
+  const [nudging, setNudging] = useState(false)
+
   async function togglePin(ticketId: string, current: boolean) {
     await fetch(`/api/tickets/${ticketId}`, {
       method: 'PATCH',
@@ -103,13 +107,15 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     loadTickets()
   }
 
-  async function sendNudge(ticketId: string) {
-    const res = await fetch(`/api/tickets/${ticketId}/nudge`, { method: 'POST' })
+  async function sendNudge() {
+    if (!nudgeTarget) return
+    setNudging(true)
+    const res = await fetch(`/api/tickets/${nudgeTarget.ticketId}/nudge`, { method: 'POST' })
+    setNudging(false)
+    setNudgeTarget(null)
     if (!res.ok) {
       const d = await res.json()
       alert(d.error || 'Hiba történt')
-    } else {
-      alert('Emlékeztető elküldve!')
     }
   }
 
@@ -299,7 +305,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                             </button>
                             {ticket.assignee && ticket.assignee.id !== user.id && (
                               <button
-                                onClick={() => sendNudge(ticket.id)}
+                                onClick={() => { const a = ticket.assignee!; setNudgeTarget({ ticketId: ticket.id, ticketTitle: ticket.title, assigneeName: displayName(a) || a.email }) }}
                                 title="Emlékeztető küldése a felelősnek"
                                 className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -354,6 +360,35 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           </>
         )}
       </div>
+
+      {/* Nudge confirm modal */}
+      {nudgeTarget && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Emlékeztető küldése</h3>
+            </div>
+            <p className="text-gray-600 text-sm mb-6">
+              Szeretnéd emlékeztetni <strong>{nudgeTarget.assigneeName}</strong> felhasználót, hogy foglalkozzon ezzel a feladattal?
+              <br /><span className="text-gray-400 mt-1 block">„{nudgeTarget.ticketTitle}"</span>
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setNudgeTarget(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
+              <button onClick={sendNudge} disabled={nudging}
+                className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                style={{ background: '#6C5CE7' }}>
+                {nudging ? 'Küldés...' : 'Emlékeztető küldése'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create ticket modal */}
       {showCreate && (

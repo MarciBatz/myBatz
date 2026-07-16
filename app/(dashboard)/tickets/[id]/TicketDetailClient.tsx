@@ -227,6 +227,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
       priority_changed: `prioritást változtatott → ${activity.newValue}`,
       assignee_changed: 'felelőst változtatott',
       category_changed: 'kategóriát változtatott',
+      nudge_sent: `emlékeztette ${activity.newValue} felhasználót, hogy foglalkozzon a feladattal`,
     }
     return map[activity.action] || activity.action
   }
