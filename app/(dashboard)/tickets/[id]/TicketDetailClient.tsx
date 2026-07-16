@@ -11,7 +11,7 @@ import { formatRelativeTime, formatDateTime, displayName } from '@/lib/utils'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
 interface Attachment { id: string; fileUrl: string; fileName: string; fileSize: number; mimeType?: string | null }
-interface NamedUser { id: string; name: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
+interface NamedUser { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
 interface Comment {
   id: string; body: string; isInternal: boolean; createdAt: string
   user: NamedUser
@@ -264,7 +264,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
         <div className="flex-1 min-w-0">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
             <div className="flex items-start gap-3 mb-4">
-              <Avatar name={ticket.createdBy.name} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} size="md" />
+              <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} size="md" />
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold text-gray-900 mb-1">{ticket.title}</h1>
                 <p className="text-xs text-gray-400">
@@ -286,7 +286,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             {ticket.comments.map(c => (
               <div key={c.id} className={`rounded-xl border shadow-sm p-5 ${c.isInternal ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Avatar name={c.user.name} email={c.user.email} avatarUrl={c.user.avatarUrl} />
+                  <Avatar name={c.user.name} firstName={c.user.firstName} nickname={c.user.nickname} email={c.user.email} avatarUrl={c.user.avatarUrl} />
                   <span className="text-sm font-medium text-gray-700">{displayName(c.user) || c.user.email}</span>
                   {c.isInternal && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Belső megjegyzés</span>}
                   <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(c.createdAt)}</span>
@@ -448,7 +448,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             <div className="space-y-3">
               {ticket.activities.slice(0, 10).map(a => (
                 <div key={a.id} className="flex gap-2.5">
-                  <Avatar name={a.user.name} email={a.user.email} />
+                  <Avatar name={a.user.name} firstName={a.user.firstName} nickname={a.user.nickname} email={a.user.email} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-600">
                       <span className="font-medium">{displayName(a.user) || a.user.email.split('@')[0]}</span>{' '}

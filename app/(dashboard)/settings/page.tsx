@@ -149,8 +149,22 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600">
-              A rendszer így szólít meg: <strong className="text-gray-900">Szia, {previewName}!</strong>
+            <div className="bg-gray-50 rounded-lg px-4 py-3 text-sm text-gray-600 flex items-center gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center text-white font-semibold text-sm flex-shrink-0 overflow-hidden" style={{ background: '#6C5CE7' }}>
+                  {profile.avatarUrl ? (
+                    <img src={profile.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    (profile.nickname || profile.firstName || profile.lastName || '?')[0].toUpperCase()
+                  )}
+                </div>
+                <div>
+                  <p className="font-medium text-gray-900 text-sm">{previewName}</p>
+                  <p className="text-xs text-gray-400">profilkép előnézet</p>
+                </div>
+              </div>
+              <span className="text-gray-400">·</span>
+              <span>A rendszer így szólít meg: <strong className="text-gray-900">Szia, {previewName}!</strong></span>
             </div>
 
             <div className="border-t border-gray-100 pt-4">

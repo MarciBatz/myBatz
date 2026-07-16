@@ -51,8 +51,8 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           category: true,
-          assignee: { select: { id: true, name: true, nickname: true, email: true, avatarUrl: true } },
-          createdBy: { select: { id: true, name: true, nickname: true, email: true, avatarUrl: true } },
+          assignee: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+          createdBy: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
           _count: { select: { comments: true } },
         },
         orderBy: [{ pinned: 'desc' }, { updatedAt: 'desc' }],

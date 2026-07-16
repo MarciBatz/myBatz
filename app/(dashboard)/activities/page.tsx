@@ -7,7 +7,7 @@ import { formatDateTime } from '@/lib/utils'
 
 interface Activity {
   id: string; action: string; oldValue: string | null; newValue: string | null; createdAt: string
-  user: { id: string; name: string | null; email: string; avatarUrl?: string | null }
+  user: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
   ticket: { id: string; title: string }
 }
 
@@ -75,7 +75,7 @@ export default function ActivitiesPage() {
           <div className="divide-y divide-gray-50">
             {activities.map(a => (
               <div key={a.id} className="flex items-start gap-4 px-5 py-4">
-                <Avatar name={a.user.name} email={a.user.email} avatarUrl={a.user.avatarUrl} />
+                <Avatar name={a.user.name} firstName={a.user.firstName} nickname={a.user.nickname} email={a.user.email} avatarUrl={a.user.avatarUrl} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700">
                     <span className="font-medium">{a.user.name || a.user.email}</span>{' '}

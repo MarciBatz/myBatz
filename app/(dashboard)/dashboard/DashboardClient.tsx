@@ -67,8 +67,8 @@ interface Ticket {
   id: string; title: string; description: string; status: string; priority: string
   createdAt: string; updatedAt: string; pinned: boolean
   category?: { id: string; name: string } | null
-  assignee?: { id: string; name: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
-  createdBy: { id: string; name: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
+  assignee?: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
+  createdBy: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
   _count: { comments: number }
 }
 interface User { id: string; name: string | null; lastName?: string | null; firstName?: string | null; nickname?: string | null; email: string; role: string }
@@ -262,7 +262,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                       <td className="px-5 py-4">
                         <Link href={`/tickets/${ticket.id}`} className="group">
                           <div className="flex items-start gap-3">
-                            <Avatar name={ticket.createdBy.name} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
+                            <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 {ticket.pinned && <span className="text-amber-500 text-xs font-semibold">★ Kiemelt</span>}
@@ -285,7 +285,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                       <td className="px-4 py-4">
                         {ticket.assignee ? (
                           <div className="flex items-center gap-2">
-                            <Avatar name={ticket.assignee.name} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
+                            <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
                             <span className="text-xs text-gray-600 truncate max-w-24">{displayName(ticket.assignee) || ticket.assignee.email}</span>
                           </div>
                         ) : <span className="text-gray-300 text-xs">Nincs hozzárendelve</span>}
