@@ -268,7 +268,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                                 {ticket.pinned && <span className="text-amber-500 text-xs font-semibold">★ Kiemelt</span>}
                                 <p className="text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate max-w-xs">{ticket.title}</p>
                               </div>
-                              <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{ticket.description.slice(0, 80)}...</p>
+                              <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{ticket.description.replace(/<[^>]+>/g, '').slice(0, 80)}...</p>
                             </div>
                           </div>
                         </Link>

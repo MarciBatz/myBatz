@@ -272,7 +272,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 </p>
               </div>
             </div>
-            <div className="prose text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: ticket.description }} />
+            <div className="prose text-sm text-gray-700 leading-relaxed" dangerouslySetInnerHTML={{ __html: ticket.description.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `<strong class="text-indigo-600">@${name}</strong>`) }} />
             {ticket.attachments.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <p className="text-xs font-medium text-gray-500 mb-1">Csatolmányok</p>
@@ -351,15 +351,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                             onMouseDown={e => {
                               e.preventDefault()
                               const name = displayName(a) || a.email
-                              const currentText = editorRef.current?.getText() ?? ''
-                              const atIdx = currentText.lastIndexOf('@')
-                              const textBefore = currentText.slice(0, atIdx)
                               const mentionTag = `@[${name}](${a.id}) `
-                              editorRef.current?.insertText(mentionTag)
-                              setComment(prev => {
-                                const beforeAt = prev.lastIndexOf('@' + mentionQuery)
-                                return beforeAt !== -1 ? prev.slice(0, beforeAt) + mentionTag + prev.slice(beforeAt + 1 + mentionQuery.length) : prev
-                              })
+                              // Delete the typed "@query" and replace with mention markup
+                              editorRef.current?.replaceMentionQuery(mentionQuery ?? '', mentionTag)
                               setMentionQuery(null)
                             }}>
                             <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ background: '#6C5CE7' }}>

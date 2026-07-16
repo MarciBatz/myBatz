@@ -9,6 +9,7 @@ import { useEffect, useImperativeHandle } from 'react'
 
 export interface RichTextEditorHandle {
   insertText: (text: string) => void
+  replaceMentionQuery: (query: string, replacement: string) => void
   getText: () => string
 }
 
@@ -72,6 +73,17 @@ export default function RichTextEditor({ value, onChange, placeholder = 'Írj va
     insertText: (text: string) => {
       editor?.commands.insertContent(text)
       editor?.commands.focus()
+    },
+    // Delete @query backwards then insert mention markup
+    replaceMentionQuery: (query: string, replacement: string) => {
+      if (!editor) return
+      const { from } = editor.state.selection
+      const deleteLen = query.length + 1 // +1 for the @ sign
+      editor.chain()
+        .deleteRange({ from: from - deleteLen, to: from })
+        .insertContent(replacement)
+        .focus()
+        .run()
     },
     getText: () => editor?.getText() ?? '',
   }), [editor])
