@@ -342,6 +342,21 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   />
                   {mentionQuery !== null && (
                     <div className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
+                      {'mindenki'.includes(mentionQuery.toLowerCase()) && (
+                        <button type="button"
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 flex items-center gap-2 border-b border-gray-100"
+                          onMouseDown={e => {
+                            e.preventDefault()
+                            editorRef.current?.replaceMentionQuery(mentionQuery ?? '', '@[mindenki](everyone) ')
+                            setMentionQuery(null)
+                          }}>
+                          <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ background: '#6C5CE7' }}>
+                            @
+                          </span>
+                          <span className="font-medium text-indigo-700">mindenki</span>
+                          <span className="text-xs text-gray-400 ml-1">— mindenkit értesít</span>
+                        </button>
+                      )}
                       {agents
                         .filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())))
                         .slice(0, 5)
@@ -352,7 +367,6 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                               e.preventDefault()
                               const name = displayName(a) || a.email
                               const mentionTag = `@[${name}](${a.id}) `
-                              // Delete the typed "@query" and replace with mention markup
                               editorRef.current?.replaceMentionQuery(mentionQuery ?? '', mentionTag)
                               setMentionQuery(null)
                             }}>
@@ -362,7 +376,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                             <span>{displayName(a) || a.email}</span>
                           </button>
                         ))}
-                      {agents.filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase()))).length === 0 && (
+                      {'mindenki'.includes(mentionQuery.toLowerCase()) === false && agents.filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase()))).length === 0 && (
                         <p className="px-3 py-2 text-sm text-gray-400">Nincs találat</p>
                       )}
                     </div>

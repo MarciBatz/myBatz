@@ -105,12 +105,19 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       // Handle @mentions
       const mentionedIds = extractMentions(data.body)
       if (mentionedIds.length > 0) {
-        const mentionedUsers = await prisma.user.findMany({
-          where: { id: { in: mentionedIds }, NOT: { id: user.id } },
-          select: { id: true, email: true, name: true, nickname: true },
-        })
-        // Send email + in-app notification to mentioned users not already notified
         const alreadyNotified = new Set(notifyList.map(u => u.id))
+        const everyoneTag = mentionedIds.includes('everyone')
+
+        const mentionedUsers = everyoneTag
+          ? await prisma.user.findMany({
+              where: { NOT: { id: user.id }, status: 'ACTIVE' },
+              select: { id: true, email: true, name: true, nickname: true },
+            })
+          : await prisma.user.findMany({
+              where: { id: { in: mentionedIds }, NOT: { id: user.id } },
+              select: { id: true, email: true, name: true, nickname: true },
+            })
+
         const newMentions = mentionedUsers.filter(u => !alreadyNotified.has(u.id))
         if (newMentions.length > 0) {
           await sendNewCommentEmail(newMentions, { id, title: ticket.title }, { body: data.body, authorName })
