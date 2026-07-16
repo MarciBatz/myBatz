@@ -13,7 +13,7 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request)
+    const adminUser = await requireAdmin(request)
     const body = await request.json()
     const { email, name, role, sendEmail: shouldSendEmail } = schema.parse(body)
 
@@ -39,7 +39,9 @@ export async function POST(request: NextRequest) {
     const inviteLink = `${appUrl}/invite/${token}`
 
     if (shouldSendEmail) {
-      await sendInviteEmail(email, token, name)
+      const inviterName = adminUser.nickname || adminUser.firstName || adminUser.name || adminUser.email
+      const inviteeName = name.split(' ').pop() || name
+      await sendInviteEmail(email, token, inviterName, inviteeName)
     }
 
     return NextResponse.json({ success: true, inviteLink, emailSent: !!shouldSendEmail }, { status: 201 })

@@ -42,7 +42,8 @@ async function sendEmail(payload: EmailPayload): Promise<void> {
 export async function sendInviteEmail(
   email: string,
   token: string,
-  inviterName: string
+  inviterName: string,
+  inviteeName: string
 ): Promise<void> {
   const appUrl = process.env.APP_URL || 'http://localhost:3000'
   const inviteUrl = `${appUrl}/invite/${token}`
@@ -52,8 +53,8 @@ export async function sendInviteEmail(
     subject: 'Meghívtak a myBatz Task rendszerbe',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6C5CE7;">Meghívtak!</h2>
-        <p><strong>${inviterName}</strong> meghívott a myBatz Task belső hibajegy-kezelő rendszerbe.</p>
+        <h2 style="color: #6C5CE7;">Szia, ${inviteeName}!</h2>
+        <p><strong>${inviterName}</strong> meghívott a myBatz Task belső feladatkezelő rendszerbe.</p>
         <p>Kattints az alábbi gombra a meghívó elfogadásához és a fiókod beállításához:</p>
         <a href="${inviteUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Meghívó elfogadása
