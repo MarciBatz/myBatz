@@ -11,6 +11,7 @@ const updateSchema = z.object({
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   categoryId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
+  pinned: z.boolean().optional(),
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -88,6 +89,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(data.priority !== undefined && { priority: data.priority }),
         ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
         ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId }),
+        ...(data.pinned !== undefined && { pinned: data.pinned }),
       },
       include: {
         assignee: { select: { id: true, name: true, email: true } },

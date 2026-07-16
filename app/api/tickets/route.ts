@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
           createdBy: { select: { id: true, name: true, nickname: true, email: true, avatarUrl: true } },
           _count: { select: { comments: true } },
         },
-        orderBy: { updatedAt: 'desc' },
+        orderBy: [{ pinned: 'desc' }, { updatedAt: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),

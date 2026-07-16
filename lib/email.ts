@@ -233,3 +233,32 @@ export async function sendTicketReminderEmail(
     `,
   })
 }
+
+export async function sendNudgeEmail(
+  user: { email: string; name?: string | null; nickname?: string | null },
+  ticket: { id: string; title: string },
+  senderName: string
+): Promise<void> {
+  const appUrl = process.env.APP_URL || 'http://localhost:3001'
+  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
+  const greeting = user.nickname || user.name || 'Kedves Felhasználó'
+
+  await sendEmail({
+    to: user.email,
+    subject: `Emlékeztető: "${ticket.title}"`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6C5CE7;">Cselekvés szükséges</h2>
+        <p>Szia ${greeting},</p>
+        <p><strong>${senderName}</strong> jelezte feléd, hogy az alábbi tickettel foglalkozni kell:</p>
+        <div style="background:#fff3cd;border-left:4px solid #f39c12;padding:16px;border-radius:4px;margin:16px 0;">
+          <strong style="font-size:16px;">${ticket.title}</strong>
+        </div>
+        <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
+          Ticket megtekintése
+        </a>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+      </div>
+    `,
+  })
+}
