@@ -10,8 +10,9 @@ const schema = z.object({
 
 export async function GET(request: NextRequest) {
   try {
-    await requireSession(request)
+    const user = await requireSession(request)
     const replies = await prisma.savedReply.findMany({
+      where: { createdById: user.id },
       include: { createdBy: { select: { id: true, name: true, email: true } } },
       orderBy: { createdAt: 'desc' },
     })
