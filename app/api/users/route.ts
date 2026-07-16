@@ -11,11 +11,13 @@ export async function GET(request: NextRequest) {
         id: true,
         email: true,
         name: true,
+        firstName: true,
         nickname: true,
         role: true,
         status: true,
         avatarUrl: true,
         createdAt: true,
+        lastSeenAt: true,
       },
       orderBy: { createdAt: 'asc' },
     })
