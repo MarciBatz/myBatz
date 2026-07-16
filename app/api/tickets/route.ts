@@ -114,12 +114,18 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Send notification to all ADMIN and AGENT users
-    const notifyUsers = await prisma.user.findMany({
-      where: { role: { in: ['ADMIN', 'AGENT'] }, status: 'ACTIVE' },
-      select: { id: true, email: true, name: true, nickname: true, firstName: true },
-    })
     const creatorName = displayName(user)
+
+    let notifyUsers: { id: string; email: string; name: string | null; nickname: string | null; firstName: string | null }[]
+    if (ticket.assignee) {
+      notifyUsers = [{ id: ticket.assignee.id, email: ticket.assignee.email, name: ticket.assignee.name, nickname: null, firstName: null }]
+    } else {
+      notifyUsers = await prisma.user.findMany({
+        where: { role: { in: ['ADMIN', 'AGENT'] }, status: 'ACTIVE', NOT: { id: user.id } },
+        select: { id: true, email: true, name: true, nickname: true, firstName: true },
+      })
+    }
+
     await sendNewTicketEmail(notifyUsers, {
       id: ticket.id,
       title: ticket.title,
