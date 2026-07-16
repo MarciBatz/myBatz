@@ -49,18 +49,18 @@ export async function sendInviteEmail(
 
   await sendEmail({
     to: email,
-    subject: 'Meghívtak a myBatz Beta rendszerbe',
+    subject: 'Meghívtak a myBatz Task rendszerbe',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Meghívtak!</h2>
-        <p><strong>${inviterName}</strong> meghívott a myBatz Beta belső hibajegy-kezelő rendszerbe.</p>
+        <p><strong>${inviterName}</strong> meghívott a myBatz Task belső hibajegy-kezelő rendszerbe.</p>
         <p>Kattints az alábbi gombra a meghívó elfogadásához és a fiókod beállításához:</p>
         <a href="${inviteUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Meghívó elfogadása
         </a>
         <p style="color:#666;font-size:14px;">A meghívó link 48 óráig érvényes.</p>
         <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${inviteUrl}</p>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
       </div>
     `,
   })
@@ -72,18 +72,18 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 
   await sendEmail({
     to: email,
-    subject: 'myBatz Beta – Jelszó visszaállítása',
+    subject: 'myBatz Task – Jelszó visszaállítása',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Jelszó visszaállítása</h2>
-        <p>Jelszó-visszaállítást kértek a myBatz Beta fiókodhoz.</p>
+        <p>Jelszó-visszaállítást kértek a myBatz Task fiókodhoz.</p>
         <p>Kattints az alábbi gombra az új jelszó beállításához:</p>
         <a href="${resetUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Jelszó visszaállítása
         </a>
         <p style="color:#666;font-size:14px;">A link 1 óráig érvényes. Ha nem te kérted, hagyd figyelmen kívül ezt az emailt.</p>
         <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${resetUrl}</p>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
       </div>
     `,
   })
@@ -125,7 +125,7 @@ export async function sendNewTicketEmail(
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
             Ticket megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
         </div>
       `,
     })
@@ -163,7 +163,7 @@ export async function sendNewCommentEmail(
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
             Ticket megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
         </div>
       `,
     })
@@ -197,7 +197,7 @@ export async function sendTicketUpdateEmail(
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
             Ticket megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
         </div>
       `,
     })
@@ -228,7 +228,7 @@ export async function sendTicketReminderEmail(
         <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
           Ticket megtekintése
         </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
       </div>
     `,
   })
@@ -257,7 +257,7 @@ export async function sendNudgeEmail(
         <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
           Ticket megtekintése
         </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Beta értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
       </div>
     `,
   })

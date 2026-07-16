@@ -85,7 +85,7 @@ export default function InvitePage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
           </div>
-          <h2 className="text-3xl font-bold mb-3">myBatz Beta</h2>
+          <h2 className="text-3xl font-bold mb-3">myBatz Task</h2>
           <p className="text-white/70 text-lg">Belső hibajegy-kezelő rendszer</p>
         </div>
       </div>
@@ -101,7 +101,7 @@ export default function InvitePage() {
             )}
             <p className="text-gray-500">
               {firstName
-                ? 'Már csak egy jelszóra van szükség, és beléphetsz a myBatz Beta felületére.'
+                ? 'Már csak egy jelszóra van szükség, és beléphetsz a myBatz Task felületére.'
                 : 'Állíts be jelszót a fiókodhoz, és azonnal beléphetsz.'}
             </p>
           </div>

@@ -2,18 +2,20 @@ import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireAdmin, unauthorizedResponse, forbiddenResponse, generateToken, hashToken } from '@/lib/auth'
+import { sendInviteEmail } from '@/lib/email'
 
 const schema = z.object({
   email: z.string().email(),
   name: z.string().min(1, 'A név megadása kötelező'),
   role: z.enum(['ADMIN', 'AGENT', 'READER']).optional(),
+  sendEmail: z.boolean().optional(),
 })
 
 export async function POST(request: NextRequest) {
   try {
     await requireAdmin(request)
     const body = await request.json()
-    const { email, name, role } = schema.parse(body)
+    const { email, name, role, sendEmail: shouldSendEmail } = schema.parse(body)
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {
@@ -36,7 +38,11 @@ export async function POST(request: NextRequest) {
     const appUrl = process.env.APP_URL || 'http://localhost:3001'
     const inviteLink = `${appUrl}/invite/${token}`
 
-    return NextResponse.json({ success: true, inviteLink }, { status: 201 })
+    if (shouldSendEmail) {
+      await sendInviteEmail(email, token, name)
+    }
+
+    return NextResponse.json({ success: true, inviteLink, emailSent: !!shouldSendEmail }, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     if (error instanceof Error && error.message === 'FORBIDDEN') return forbiddenResponse()

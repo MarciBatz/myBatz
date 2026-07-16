@@ -23,6 +23,7 @@ export default function AgentsPage() {
   const [inviteFirstName, setInviteFirstName] = useState('')
   const [inviteEmail, setInviteEmail] = useState('')
   const [inviteRole, setInviteRole] = useState('AGENT')
+  const [inviteSendEmail, setInviteSendEmail] = useState(true)
   const [inviteError, setInviteError] = useState('')
   const [inviteLoading, setInviteLoading] = useState(false)
 
@@ -48,6 +49,7 @@ export default function AgentsPage() {
     setInviteFirstName('')
     setInviteEmail('')
     setInviteRole('AGENT')
+    setInviteSendEmail(true)
     setInviteError('')
     setShowInviteModal(true)
   }
@@ -62,7 +64,7 @@ export default function AgentsPage() {
     const res = await fetch('/api/users/invite', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: inviteEmail, name: fullName, role: inviteRole }),
+      body: JSON.stringify({ email: inviteEmail, name: fullName, role: inviteRole, sendEmail: inviteSendEmail }),
     })
     const data = await res.json()
     if (!res.ok) {
@@ -267,6 +269,14 @@ export default function AgentsPage() {
                   <option value="READER">Olvasó</option>
                 </select>
               </div>
+              <label className="flex items-center gap-3 cursor-pointer select-none">
+                <div className={`relative w-10 h-5 rounded-full transition-colors ${inviteSendEmail ? '' : 'bg-gray-200'}`}
+                  style={inviteSendEmail ? { background: '#6C5CE7' } : {}}
+                  onClick={() => setInviteSendEmail(!inviteSendEmail)}>
+                  <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${inviteSendEmail ? 'translate-x-5' : ''}`} />
+                </div>
+                <span className="text-sm text-gray-700">Meghívó e-mail küldése a felhasználónak</span>
+              </label>
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowInviteModal(false)}
                   className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
