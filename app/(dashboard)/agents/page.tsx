@@ -17,6 +17,10 @@ export default function AgentsPage() {
   const [deleteTarget, setDeleteTarget] = useState<AgentUser | null>(null)
   const [deleting, setDeleting] = useState(false)
 
+  // Role change confirmation
+  const [roleChangeTarget, setRoleChangeTarget] = useState<{ user: AgentUser; newRole: string } | null>(null)
+  const [changingRole, setChangingRole] = useState(false)
+
   // Invite modal
   const [showInviteModal, setShowInviteModal] = useState(false)
   const [inviteLastName, setInviteLastName] = useState('')
@@ -111,12 +115,16 @@ export default function AgentsPage() {
     loadUsers()
   }
 
-  async function changeRole(userId: string, newRole: string) {
-    await fetch(`/api/users/${userId}`, {
+  async function confirmRoleChange() {
+    if (!roleChangeTarget) return
+    setChangingRole(true)
+    await fetch(`/api/users/${roleChangeTarget.user.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: newRole }),
+      body: JSON.stringify({ role: roleChangeTarget.newRole }),
     })
+    setChangingRole(false)
+    setRoleChangeTarget(null)
     loadUsers()
   }
 
@@ -196,7 +204,7 @@ export default function AgentsPage() {
                     {isAdmin && currentUser?.id !== u.id ? (
                       <select
                         value={u.role}
-                        onChange={e => changeRole(u.id, e.target.value)}
+                        onChange={e => setRoleChangeTarget({ user: u, newRole: e.target.value })}
                         className={`text-xs font-medium rounded-md px-2 py-0.5 border-0 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer ${
                           u.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
                           u.role === 'READER' ? 'bg-teal-100 text-teal-700' :
@@ -352,6 +360,46 @@ export default function AgentsPage() {
           </div>
         </div>
       )}
+
+      {/* Role change confirmation modal */}
+      {roleChangeTarget && (() => {
+        const roleLabels: Record<string, string> = { ADMIN: 'Adminisztrátor', AGENT: 'Felhasználó', READER: 'Olvasó' }
+        const userName = roleChangeTarget.user.name || roleChangeTarget.user.email
+        const oldRole = roleLabels[roleChangeTarget.user.role]
+        const newRole = roleLabels[roleChangeTarget.newRole]
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: '#f0edff' }}>
+                  <svg className="w-5 h-5" style={{ color: '#6C5CE7' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-gray-900">Szerepkör módosítása</h3>
+                  <p className="text-sm text-gray-500">Az érintett felhasználó e-mail értesítőt kap.</p>
+                </div>
+              </div>
+              <p className="text-sm text-gray-600 mb-6">
+                Biztosan megváltoztatod <strong>{userName}</strong> szerepkörét{' '}
+                <strong>{oldRole}</strong>-ról <strong>{newRole}</strong>-re?
+              </p>
+              <div className="flex justify-end gap-3">
+                <button onClick={() => setRoleChangeTarget(null)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                  Mégse
+                </button>
+                <button onClick={confirmRoleChange} disabled={changingRole}
+                  className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                  style={{ background: '#6C5CE7' }}>
+                  {changingRole ? 'Módosítás...' : 'Igen, megváltoztatom'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Link copy modal */}
       {showLinkModal && (
