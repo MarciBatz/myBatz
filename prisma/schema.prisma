@@ -89,9 +89,9 @@ model Ticket {
   categoryId  String?
   category    Category?    @relation(fields: [categoryId], references: [id])
   assigneeId  String?
-  assignee    User?        @relation("AssignedTo", fields: [assigneeId], references: [id])
-  createdById String
-  createdBy   User         @relation("CreatedBy", fields: [createdById], references: [id])
+  assignee    User?        @relation("AssignedTo", fields: [assigneeId], references: [id], onDelete: SetNull)
+  createdById String?
+  createdBy   User?        @relation("CreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
   comments    Comment[]
   attachments Attachment[]
   activities  ActivityLog[]
@@ -104,8 +104,8 @@ model Comment {
   id          String       @id @default(cuid())
   ticketId    String
   ticket      Ticket       @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  userId      String
-  user        User         @relation(fields: [userId], references: [id])
+  userId      String?
+  user        User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
   body        String
   isInternal  Boolean      @default(false)
   attachments Attachment[]
@@ -130,8 +130,8 @@ model ActivityLog {
   id        String   @id @default(cuid())
   ticketId  String
   ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  userId    String
-  user      User     @relation(fields: [userId], references: [id])
+  userId    String?
+  user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   action    String
   oldValue  String?
   newValue  String?
@@ -142,15 +142,15 @@ model SavedReply {
   id          String   @id @default(cuid())
   title       String
   body        String
-  createdById String
-  createdBy   User     @relation(fields: [createdById], references: [id])
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
 }
 
 model NotificationLog {
   id       String   @id @default(cuid())
-  userId   String
-  user     User     @relation(fields: [userId], references: [id])
+  userId   String?
+  user     User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
   ticketId String
   ticket   Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   type     String

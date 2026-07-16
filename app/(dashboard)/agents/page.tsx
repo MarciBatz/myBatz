@@ -100,8 +100,13 @@ export default function AgentsPage() {
   async function deleteUser() {
     if (!deleteTarget) return
     setDeleting(true)
-    await fetch(`/api/users/${deleteTarget.id}`, { method: 'DELETE' })
+    const res = await fetch(`/api/users/${deleteTarget.id}`, { method: 'DELETE' })
     setDeleting(false)
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}))
+      alert(data.error || 'Nem sikerült törölni a felhasználót')
+      return
+    }
     setDeleteTarget(null)
     loadUsers()
   }
