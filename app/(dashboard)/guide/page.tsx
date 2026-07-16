@@ -110,7 +110,7 @@ export default function GuidePage() {
               </div>
             </div>
             <div className="bg-indigo-50 rounded-lg px-4 py-3 mt-2 text-indigo-800 text-sm">
-              <strong>Belső megjegyzés:</strong> Csak a csapat tagjai látják — az ügyfél / bejelentő nem kap értesítést róla.
+              <strong>Belső megjegyzés:</strong> Csak az Adminisztrátor és Felhasználó szerepkörű tagok látják — az Olvasó jogosultsággal rendelkező felhasználók nem.
             </div>
           </div>
         </section>
