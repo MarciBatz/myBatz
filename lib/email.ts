@@ -132,6 +132,10 @@ export async function sendNewTicketEmail(
   }
 }
 
+function cleanMentions(body: string): string {
+  return body.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `@${name}`)
+}
+
 export async function sendNewCommentEmail(
   users: { email: string; name?: string | null; nickname?: string | null }[],
   ticket: { id: string; title: string },
@@ -154,7 +158,7 @@ export async function sendNewCommentEmail(
           <p><strong>${comment.authorName}</strong> hozzászólt egy tickethez amelynek te vagy a felelőse:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
             <p style="color:#888;font-size:12px;margin:0 0 8px;">Ticket: <strong>${ticket.title}</strong></p>
-            <p style="margin:0;">${comment.body.slice(0, 300)}${comment.body.length > 300 ? '...' : ''}</p>
+            <p style="margin:0;">${cleanMentions(comment.body).slice(0, 300)}${comment.body.length > 300 ? '...' : ''}</p>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
             Ticket megtekintése
