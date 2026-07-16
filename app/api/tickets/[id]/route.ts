@@ -98,25 +98,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       },
     })
 
+    const statusLabel: Record<string, string> = { OPEN: 'Nyitott', IN_PROGRESS: 'Folyamatban', AWAITING: 'Várakozik', CLOSED: 'Lezárt' }
+    const priorityLabel: Record<string, string> = { LOW: 'Alacsony', MEDIUM: 'Közepes', HIGH: 'Magas', CRITICAL: 'Kritikus' }
+
     // Log activities for changes
     const activityLogs = []
     const changes: string[] = []
 
     if (data.status && data.status !== existing.status) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'status_changed', oldValue: existing.status, newValue: data.status })
-      changes.push(`Status changed from ${existing.status} to ${data.status}`)
+      changes.push(`Státusz: ${statusLabel[existing.status] ?? existing.status} → ${statusLabel[data.status] ?? data.status}`)
     }
     if (data.priority && data.priority !== existing.priority) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'priority_changed', oldValue: existing.priority, newValue: data.priority })
-      changes.push(`Priority changed from ${existing.priority} to ${data.priority}`)
+      changes.push(`Prioritás: ${priorityLabel[existing.priority] ?? existing.priority} → ${priorityLabel[data.priority] ?? data.priority}`)
     }
     if (data.assigneeId !== undefined && data.assigneeId !== existing.assigneeId) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'assignee_changed', oldValue: existing.assigneeId || 'none', newValue: data.assigneeId || 'none' })
-      changes.push(`Assignee changed`)
+      changes.push('Felelős megváltozott')
     }
     if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'category_changed', oldValue: existing.categoryId || 'none', newValue: data.categoryId || 'none' })
-      changes.push(`Category changed`)
+      // kategória változás nem küld e-mailt
     }
 
     if (activityLogs.length > 0) {
