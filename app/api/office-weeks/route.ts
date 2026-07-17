@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
   // Generate upcoming weeks if needed
   await generateOfficeWeeks(16)
 
-  let weeks
+  let weeks: Awaited<ReturnType<typeof prisma.officeWeek.findMany>>
   if (year && month) {
     const monthStart = new Date(Date.UTC(year, month - 1, 1))
     const monthEnd = new Date(Date.UTC(year, month, 0))
