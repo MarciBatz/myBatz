@@ -110,7 +110,7 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
 
       const { start, end } = parseTime(row[1] || '')
 
-      const cellFmt: CellFormat = fmtRows[i]?.values?.[0] ?? {}
+      const cellFmt: CellFormat = (fmtRows[i]?.values?.[0] as { userEnteredFormat?: CellFormat } | undefined)?.userEnteredFormat ?? {}
       const strikethrough = cellFmt.textFormat?.strikethrough ?? false
       const bg = cellFmt.backgroundColor
       // Google Sheets default white background is {red:1, green:1, blue:1} — treat as no color
