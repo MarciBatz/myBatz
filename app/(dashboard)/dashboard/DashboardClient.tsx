@@ -62,6 +62,13 @@ function FileUploader({ onUploaded }: { onUploaded: (files: { fileUrl: string; f
   )
 }
 
+interface TodayData {
+  shifts: { id: string; title: string; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
+  officeWeek: { assignedUser: { id: string; name: string | null; firstName: string | null; nickname: string | null } | null } | null
+  events: { id: string; title: string; createdBy: { name: string | null; firstName: string | null; nickname: string | null } }[]
+  vacations: { id: string; note: string | null; user: { id: string; name: string | null; firstName: string | null; nickname: string | null } }[]
+}
+
 interface Stats { open: number; inProgress: number; awaiting: number; closed: number }
 interface Ticket {
   id: string; title: string; description: string; status: string; priority: string
@@ -77,6 +84,7 @@ const STATUS_OPTIONS = ['', 'OPEN', 'IN_PROGRESS', 'AWAITING', 'CLOSED']
 const PRIORITY_OPTIONS = ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
 export default function DashboardClient({ user, ticketsOnly = false }: { user: User; ticketsOnly?: boolean }) {
+  const [todayData, setTodayData] = useState<TodayData | null>(null)
   const [stats, setStats] = useState<Stats | null>(null)
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [total, setTotal] = useState(0)
@@ -124,6 +132,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     fetch('/api/dashboard/stats').then(r => r.json()).then(d => setStats(d))
     fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
     fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
+    fetch('/api/calendar/today').then(r => r.json()).then(d => setTodayData(d))
   }, [])
 
   const loadTickets = useCallback(async () => {
@@ -173,6 +182,52 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           </button>
         )}
       </div>
+
+      {/* Today's calendar strip */}
+      {!ticketsOnly && todayData && (() => {
+        const chips: { key: string; label: string; color: string; bg: string }[] = []
+
+        todayData.shifts.forEach(s => {
+          const who = s.assignedTo ? ` · ${s.assignedTo}` : ''
+          chips.push({
+            key: s.id,
+            label: `${s.title}${who}`,
+            color: s.forSelf ? '#dc2626' : '#7c3aed',
+            bg: s.forSelf ? '#fef2f2' : '#f5f3ff',
+          })
+        })
+
+        if (todayData.officeWeek?.assignedUser) {
+          const u = todayData.officeWeek.assignedUser
+          const name = u.nickname || u.firstName || u.name || '?'
+          chips.push({ key: 'office', label: `🧹 Irodai hetes: ${name}`, color: '#92400e', bg: '#fffbeb' })
+        }
+
+        todayData.vacations.forEach(v => {
+          const u = v.user
+          const name = u.nickname || u.firstName || u.name || '?'
+          chips.push({ key: v.id, label: `🏖 Szabadság: ${name}`, color: '#0369a1', bg: '#f0f9ff' })
+        })
+
+        todayData.events.forEach(e => {
+          chips.push({ key: e.id, label: e.title, color: '#0f766e', bg: '#f0fdfa' })
+        })
+
+        if (chips.length === 0) return null
+
+        return (
+          <div className="mb-5 flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider mr-1">Ma</span>
+            {chips.map(chip => (
+              <span key={chip.key}
+                className="inline-flex items-center px-3 py-1.5 rounded-full text-xs font-medium"
+                style={{ color: chip.color, background: chip.bg }}>
+                {chip.label}
+              </span>
+            ))}
+          </div>
+        )
+      })()}
 
       {/* Stat cards */}
       {!ticketsOnly && <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
