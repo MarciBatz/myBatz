@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/sync-shifts",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 6 * * *"
     }
   ]
 }
