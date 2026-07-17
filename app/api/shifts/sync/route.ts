@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
           forSelf: row.forSelf,
           notes: row.notes,
           shopCode: row.shopCode,
+          strikethrough: row.strikethrough,
+          bgColor: row.bgColor,
           syncedAt: new Date(),
         },
         create: {
@@ -46,6 +48,8 @@ export async function POST(request: NextRequest) {
           forSelf: row.forSelf,
           notes: row.notes,
           shopCode: row.shopCode,
+          strikethrough: row.strikethrough,
+          bgColor: row.bgColor,
         },
       })
       upserted++

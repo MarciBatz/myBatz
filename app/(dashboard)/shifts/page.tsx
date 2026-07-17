@@ -8,7 +8,7 @@ interface ShiftDay {
   location: string | null; shopName: string | null; address: string | null
   contactEmail: string | null; contactPhone: string | null; adMode: string | null
   assignedTo: string | null; forSelf: boolean; notes: string | null
-  shopCode: string | null; syncedAt: string
+  shopCode: string | null; syncedAt: string; strikethrough: boolean; bgColor: string | null
 }
 interface CalendarEvent {
   id: string; title: string; description: string | null; date: string; type: string
@@ -257,8 +257,12 @@ export default function ShiftsPage() {
                       </div>
                     )}
                     {dayShifts.map(s => (
-                      <div key={s.id} className="text-[10px] leading-tight rounded px-1 py-0.5 mb-0.5 text-white truncate"
-                        style={{ background: s.forSelf ? '#e53e3e' : '#6C5CE7' }}>
+                      <div key={s.id} className="text-[10px] leading-tight rounded px-1 py-0.5 mb-0.5 truncate"
+                        style={{
+                          background: s.bgColor ?? (s.forSelf ? '#e53e3e' : '#6C5CE7'),
+                          color: s.bgColor ? '#1a1a1a' : 'white',
+                          opacity: s.strikethrough ? 0.4 : 1,
+                        }}>
                         {s.location || s.shopName || '—'}
                       </div>
                     ))}
@@ -297,7 +301,8 @@ export default function ShiftsPage() {
                       : item.kind === 'office' ? '🧹 Hetes'
                       : item.kind === 'vacation' ? `🏖 ${uName(item.data.user)}`
                       : item.data.title
-                    const bg = item.kind === 'shift' ? (item.data.forSelf ? '#e53e3e' : '#6C5CE7')
+                    const bg = item.kind === 'shift'
+                      ? (item.data.bgColor ?? (item.data.forSelf ? '#e53e3e' : '#6C5CE7'))
                       : item.kind === 'office' ? '#fb923c'
                       : item.kind === 'vacation' ? '#38bdf8'
                       : '#14b8a6'
@@ -363,6 +368,12 @@ function ShiftDetail({ shift }: { shift: ShiftDay }) {
   const date = new Date(shift.date)
   return (
     <div className="space-y-3 text-sm">
+      {shift.strikethrough && (
+        <div className="flex items-center gap-1.5 px-2 py-1.5 bg-gray-100 rounded-lg text-gray-500 text-xs">
+          <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+          Elmaradt szűrőnap
+        </div>
+      )}
       <div><p className="text-xs text-gray-400 mb-0.5">Dátum</p><p className="font-medium text-gray-900">{date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p></div>
       {(shift.timeStart || shift.timeEnd) && <div><p className="text-xs text-gray-400 mb-0.5">Időpont</p><p className="text-gray-900">{shift.timeStart}{shift.timeEnd ? ` – ${shift.timeEnd}` : ''}</p></div>}
       {shift.shopName && <div><p className="text-xs text-gray-400 mb-0.5">Bolt neve</p><p className="text-gray-900">{shift.shopName}</p></div>}

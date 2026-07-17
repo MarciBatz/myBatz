@@ -172,6 +172,8 @@ model ShiftDay {
   rowIndex      Int
   sheetTab      String   @default("2026")
   syncedAt      DateTime @default(now())
+  strikethrough Boolean  @default(false)
+  bgColor       String?
 
   @@unique([rowIndex, sheetTab])
 }

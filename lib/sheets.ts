@@ -15,6 +15,8 @@ interface SheetRow {
   forSelf: boolean
   notes: string | null
   shopCode: string | null
+  strikethrough: boolean
+  bgColor: string | null
 }
 
 function parseTime(val: string): { start: string | null; end: string | null } {
@@ -54,6 +56,10 @@ function parseDate(val: string): string | null {
   return null
 }
 
+function rgbToHex(r: number, g: number, b: number): string {
+  return '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('')
+}
+
 export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> {
   const spreadsheetId = process.env.GOOGLE_SHEET_ID
   const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT_JSON
@@ -63,7 +69,6 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
   }
 
   let saJson = serviceAccountJson.trim()
-  // Strip surrounding quotes if the env var was stored with them
   if ((saJson.startsWith('"') && saJson.endsWith('"')) || (saJson.startsWith("'") && saJson.endsWith("'"))) {
     saJson = saJson.slice(1, -1)
   }
@@ -71,7 +76,6 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
   try {
     sa = JSON.parse(saJson)
   } catch {
-    // Env vars sometimes store literal newlines inside the private_key string value
     try {
       sa = JSON.parse(saJson.replace(/\n/g, '\\n'))
     } catch (e) {
@@ -80,23 +84,24 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
     }
   }
 
-  // Get access token via JWT
   const token = await getAccessToken(sa)
 
+  // Fetch values
   const range = encodeURIComponent(`${tab}!A2:S2000`)
-  const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`
+  const valuesUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`
+  const valRes = await fetch(valuesUrl, { headers: { Authorization: `Bearer ${token}` } })
+  if (!valRes.ok) throw new Error(`Sheets API hiba: ${await valRes.text()}`)
+  const valData = await valRes.json()
+  const rows: string[][] = valData.values || []
 
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Sheets API hiba: ${err}`)
-  }
-
-  const data = await res.json()
-  const rows: string[][] = data.values || []
+  // Fetch formatting (strikethrough + background color)
+  const fmtRange = encodeURIComponent(`${tab}!A2:A2000`)
+  const fmtUrl = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?includeGridData=true&ranges=${fmtRange}&fields=sheets.data.rowData.values.userEnteredFormat`
+  const fmtRes = await fetch(fmtUrl, { headers: { Authorization: `Bearer ${token}` } })
+  type CellFormat = { textFormat?: { strikethrough?: boolean }; backgroundColor?: { red?: number; green?: number; blue?: number } }
+  type RowData = { values?: CellFormat[] }
+  const fmtData = fmtRes.ok ? await fmtRes.json() : null
+  const fmtRows: RowData[] = fmtData?.sheets?.[0]?.data?.[0]?.rowData ?? []
 
   return rows
     .map((row, i) => {
@@ -105,8 +110,15 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
 
       const { start, end } = parseTime(row[1] || '')
 
+      const cellFmt: CellFormat = fmtRows[i]?.values?.[0] ?? {}
+      const strikethrough = cellFmt.textFormat?.strikethrough ?? false
+      const bg = cellFmt.backgroundColor
+      // Google Sheets default white background is {red:1, green:1, blue:1} — treat as no color
+      const isDefault = !bg || (bg.red === 1 && bg.green === 1 && bg.blue === 1) || (bg.red === undefined && bg.green === undefined && bg.blue === undefined)
+      const bgColor = isDefault ? null : rgbToHex(bg.red ?? 0, bg.green ?? 0, bg.blue ?? 0)
+
       return {
-        rowIndex: i + 2, // 1-indexed, header is row 1
+        rowIndex: i + 2,
         date: dateStr,
         timeStart: start,
         timeEnd: end,
@@ -120,6 +132,8 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
         forSelf: (row[10] || '').trim() === 'Magának',
         notes: row[13] || null,
         shopCode: row[18] || null,
+        strikethrough,
+        bgColor,
       }
     })
     .filter((r) => r !== null && r.date != null) as SheetRow[]
