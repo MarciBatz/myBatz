@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { requireSession, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { fetchSheetRows } from '@/lib/sheets'
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request)
+    await requireSession(request)
 
     const tab = '2026'
     const rows = await fetchSheetRows(tab)
