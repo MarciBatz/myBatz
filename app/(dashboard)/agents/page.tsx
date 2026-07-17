@@ -21,6 +21,7 @@ interface UserSettings {
     canManageEmailNotifications: boolean
     canSendInvites: boolean
     canDeleteTickets: boolean
+    canDeleteComments: boolean
     canManageCategories: boolean
   } | null
 }
@@ -183,7 +184,7 @@ export default function AgentsPage() {
     }
     const defaultPerms = {
       canRegenerateOfficeSchedule: false, canManageEmailNotifications: false,
-      canSendInvites: false, canDeleteTickets: false, canManageCategories: false,
+      canSendInvites: false, canDeleteTickets: false, canDeleteComments: false, canManageCategories: false,
     }
     setSettings({
       preferences: { ...defaults, ...(data.preferences || {}) },
@@ -591,6 +592,7 @@ export default function AgentsPage() {
                         { key: 'canManageEmailNotifications', label: 'E-mail értesítési beállítások módosítása' },
                         { key: 'canSendInvites', label: 'Meghívó küldése' },
                         { key: 'canDeleteTickets', label: 'Ticketek törlése' },
+                        { key: 'canDeleteComments', label: 'Hozzászólások törlése' },
                         { key: 'canManageCategories', label: 'Kategóriák kezelése' },
                       ] as const).map(({ key, label }) => (
                         <label key={key} className="flex items-center justify-between cursor-pointer">

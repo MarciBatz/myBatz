@@ -162,6 +162,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [savedReplies, setSavedReplies] = useState<{ id: string; title: string; body: string }[]>([])
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [canDeleteComments, setCanDeleteComments] = useState(false)
+  const [deleteCommentTarget, setDeleteCommentTarget] = useState<string | null>(null)
+  const [deletingComment, setDeletingComment] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
   const [commentText, setCommentText] = useState('')
   const editorRef = useRef<RichTextEditorHandle>(null)
@@ -178,6 +181,12 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
     fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
     fetch('/api/saved-replies').then(r => r.json()).then(d => setSavedReplies(d.replies || []))
+    fetch('/api/auth/me').then(r => r.json()).then(d => {
+      if (d.user?.role === 'ADMIN') { setCanDeleteComments(true); return }
+      fetch(`/api/users/${d.user?.id}/settings`).then(r => r.json()).then(s => {
+        setCanDeleteComments(s.permissions?.canDeleteComments === true)
+      })
+    })
   }, [loadTicket])
 
   async function updateField(field: string, value: string | null) {
@@ -207,6 +216,15 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
       loadTicket()
     }
     setSubmittingComment(false)
+  }
+
+  async function deleteComment() {
+    if (!deleteCommentTarget) return
+    setDeletingComment(true)
+    await fetch(`/api/tickets/${ticketId}/comments/${deleteCommentTarget}`, { method: 'DELETE' })
+    setDeletingComment(false)
+    setDeleteCommentTarget(null)
+    loadTicket()
   }
 
   async function deleteTicket() {
@@ -290,6 +308,15 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   <span className="text-sm font-medium text-gray-700">{displayName(c.user) || c.user.email}</span>
                   {c.isInternal && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Belső megjegyzés</span>}
                   <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(c.createdAt)}</span>
+                  {canDeleteComments && (
+                    <button onClick={() => setDeleteCommentTarget(c.id)}
+                      title="Hozzászólás törlése"
+                      className="p-1 text-gray-300 hover:text-red-400 transition-colors rounded">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  )}
                 </div>
                 {c.body !== '(csatolmány)' ? (
                   <div className="prose text-sm text-gray-700"
@@ -503,6 +530,36 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
               <button onClick={deleteTicket} disabled={deleting}
                 className="px-4 py-2 text-sm text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-60">
                 {deleting ? 'Törlés...' : 'Igen, töröld'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete comment confirmation modal */}
+      {deleteCommentTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-red-50 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Hozzászólás törlése</h2>
+                <p className="text-sm text-gray-500">Ez a művelet nem visszavonható.</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-600 mb-6">Biztosan törlöd ezt a hozzászólást?</p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setDeleteCommentTarget(null)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                Mégse
+              </button>
+              <button onClick={deleteComment} disabled={deletingComment}
+                className="px-4 py-2 text-sm text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-60">
+                {deletingComment ? 'Törlés...' : 'Igen, töröld'}
               </button>
             </div>
           </div>

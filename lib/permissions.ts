@@ -5,6 +5,7 @@ export type PermissionKey =
   | 'canManageEmailNotifications'
   | 'canSendInvites'
   | 'canDeleteTickets'
+  | 'canDeleteComments'
   | 'canManageCategories'
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
@@ -12,6 +13,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   canManageEmailNotifications: 'E-mail értesítési beállítások módosítása',
   canSendInvites: 'Meghívó küldése',
   canDeleteTickets: 'Ticketek törlése',
+  canDeleteComments: 'Hozzászólások törlése',
   canManageCategories: 'Kategóriák kezelése',
 }
 

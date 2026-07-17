@@ -207,6 +207,7 @@ model UserPermissions {
   canManageEmailNotifications Boolean @default(false)
   canSendInvites              Boolean @default(false)
   canDeleteTickets            Boolean @default(false)
+  canDeleteComments           Boolean @default(false)
   canManageCategories         Boolean @default(false)
 }
 
