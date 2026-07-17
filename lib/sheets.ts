@@ -39,12 +39,22 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
     throw new Error('GOOGLE_SHEET_ID vagy GOOGLE_SERVICE_ACCOUNT_JSON nincs beállítva')
   }
 
+  let saJson = serviceAccountJson.trim()
+  // Strip surrounding quotes if the env var was stored with them
+  if ((saJson.startsWith('"') && saJson.endsWith('"')) || (saJson.startsWith("'") && saJson.endsWith("'"))) {
+    saJson = saJson.slice(1, -1)
+  }
   let sa
   try {
-    sa = JSON.parse(serviceAccountJson)
+    sa = JSON.parse(saJson)
   } catch {
     // Env vars sometimes store literal newlines inside the private_key string value
-    sa = JSON.parse(serviceAccountJson.replace(/\n/g, '\\n'))
+    try {
+      sa = JSON.parse(saJson.replace(/\n/g, '\\n'))
+    } catch (e) {
+      console.error('GOOGLE_SERVICE_ACCOUNT_JSON parse failed. First 200 chars:', saJson.slice(0, 200))
+      throw e
+    }
   }
 
   // Get access token via JWT
