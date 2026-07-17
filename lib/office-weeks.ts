@@ -17,10 +17,9 @@ export async function generateOfficeWeeks(weeksAhead = 12) {
     where: {
       status: 'ACTIVE',
       role: { in: ['ADMIN', 'AGENT'] },
-      OR: [
-        { preferences: null },
-        { preferences: { excludeFromOfficeRotation: false } },
-      ],
+      NOT: {
+        preferences: { excludeFromOfficeRotation: true },
+      },
     },
     orderBy: [{ name: 'asc' }],
     select: { id: true, name: true },
