@@ -31,11 +31,13 @@ export async function GET(request: NextRequest) {
     const categoryId = searchParams.get('categoryId') || undefined
     const assigneeId = searchParams.get('assigneeId') || undefined
     const search = searchParams.get('search') || undefined
+    const excludeClosed = searchParams.get('excludeClosed') === 'true'
     const page = parseInt(searchParams.get('page') || '1')
     const pageSize = parseInt(searchParams.get('pageSize') || '20')
 
     const where: Record<string, unknown> = {}
     if (status) where.status = status
+    else if (excludeClosed) where.status = { not: 'CLOSED' }
     if (priority) where.priority = priority
     if (categoryId) where.categoryId = categoryId
     if (assigneeId) where.assigneeId = assigneeId

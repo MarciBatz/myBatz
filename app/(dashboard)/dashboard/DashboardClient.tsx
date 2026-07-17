@@ -93,6 +93,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const [agents, setAgents] = useState<{ id: string; name: string | null; email: string }[]>([])
 
   // Filters
+  const [showClosed, setShowClosed] = useState(false)
   const [status, setStatus] = useState('')
   const [priority, setPriority] = useState('')
   const [categoryId, setCategoryId] = useState('')
@@ -145,6 +146,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     if (categoryId) params.set('categoryId', categoryId)
     if (assigneeId) params.set('assigneeId', assigneeId)
     if (search) params.set('search', search)
+    if (!showClosed) params.set('excludeClosed', 'true')
     params.set('page', String(page))
     params.set('pageSize', '20')
 
@@ -153,12 +155,12 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     setTickets(d.tickets || [])
     setTotal(d.total || 0)
     setLoading(false)
-  }, [status, priority, categoryId, assigneeId, search, page])
+  }, [status, priority, categoryId, assigneeId, search, page, showClosed])
 
   useEffect(() => { loadTickets() }, [loadTickets])
 
   function clearFilters() {
-    setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setPage(1)
+    setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1)
   }
 
   return (
@@ -281,6 +283,14 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             <option value="">Minden felelős</option>
             {agents.map(a => <option key={a.id} value={a.id}>{agentNameMap[a.id] || a.email}</option>)}
           </select>
+          <button
+            onClick={() => { setShowClosed(v => !v); setPage(1) }}
+            className={`flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border transition-colors ${showClosed ? 'bg-gray-100 text-gray-700 border-gray-300' : 'text-gray-400 border-gray-200 hover:bg-gray-50 hover:text-gray-600'}`}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+            </svg>
+            Lezárt feladatok
+          </button>
           <button onClick={clearFilters} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">
             Szűrők törlése
           </button>
