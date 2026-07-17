@@ -39,7 +39,13 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
     throw new Error('GOOGLE_SHEET_ID vagy GOOGLE_SERVICE_ACCOUNT_JSON nincs beállítva')
   }
 
-  const sa = JSON.parse(serviceAccountJson)
+  let sa
+  try {
+    sa = JSON.parse(serviceAccountJson)
+  } catch {
+    // Env vars sometimes store literal newlines inside the private_key string value
+    sa = JSON.parse(serviceAccountJson.replace(/\n/g, '\\n'))
+  }
 
   // Get access token via JWT
   const token = await getAccessToken(sa)
