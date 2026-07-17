@@ -154,6 +154,17 @@ model SavedReply {
   createdAt   DateTime @default(now())
 }
 
+model ChangelogEntry {
+  id          String   @id @default(cuid())
+  version     String
+  title       String
+  content     String   @db.Text
+  authorId    String?
+  authorName  String?
+  publishedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+}
+
 model ShiftDay {
   id            String   @id @default(cuid())
   date          DateTime

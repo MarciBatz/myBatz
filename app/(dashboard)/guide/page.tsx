@@ -5,16 +5,10 @@ import Link from 'next/link'
 export default function GuidePage() {
   return (
     <div className="min-h-screen p-6 max-w-4xl mx-auto">
-      {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-3 mb-4">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
+          <Link href="/dashboard" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             Vissza a myBatz Task felületre
           </Link>
         </div>
@@ -37,21 +31,36 @@ export default function GuidePage() {
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>1</span>
-            Szerepkörök
+            Szerepkörök és jogosultságok
           </h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Adminisztrátor</p>
-              <p className="text-sm text-gray-600">Teljes hozzáférés: felhasználók kezelése, kategóriák létrehozása, minden ticket megtekintése és módosítása, összes beállítás elérése.</p>
+              <p className="text-sm text-gray-600">Teljes hozzáférés: felhasználók kezelése, kategóriák létrehozása, minden ticket megtekintése és módosítása, összes beállítás elérése, changelog kezelése.</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Felhasználó (Agent)</p>
-              <p className="text-sm text-gray-600">Ticketek létrehozása és kezelése, megjegyzések fűzése, felelős jelölése, sablon válaszok szerkesztése.</p>
+              <p className="text-sm text-gray-600">Ticketek létrehozása és kezelése, megjegyzések fűzése, felelős jelölése, sablon válaszok szerkesztése. Egyéni jogosultságokkal bővíthető.</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Olvasó (Reader)</p>
               <p className="text-sm text-gray-600">Kizárólag megtekintési jog: a ticketeket látja, de nem módosíthatja azokat.</p>
             </div>
+          </div>
+          <div className="bg-indigo-50 rounded-lg px-4 py-3 text-sm text-indigo-800">
+            <strong>Egyéni jogosultságok (Agent szintű felhasználóknak adható):</strong>
+            <ul className="mt-2 space-y-1">
+              {[
+                'Meghívó küldése — új munkatárs meghívása e-mailben',
+                'Irodai beosztás újragenerálása — jövőbeli hetek újraosztása',
+                'Felhasználói beállítások kezelése — mások preferenciáinak és jogosultságainak szerkesztése',
+                'Ticketek törlése — ticket végleges eltávolítása',
+                'Hozzászólások törlése — megjegyzések törlése ticketeken',
+                'Kategóriák kezelése — kategóriák létrehozása és törlése',
+              ].map((item, i) => (
+                <li key={i} className="flex items-start gap-2"><span className="mt-0.5">•</span><span>{item}</span></li>
+              ))}
+            </ul>
           </div>
         </section>
 
@@ -67,10 +76,9 @@ export default function GuidePage() {
               <div>
                 <p className="font-medium text-gray-900 mb-2">Ticket létrehozásakor megadható:</p>
                 <ul className="space-y-1 text-gray-600">
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Cím és részletes leírás (szövegformázással)</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Kategória és prioritás (Alacsony / Közepes / Magas / Kritikus)</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Felelős személy hozzárendelése</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Fájlmelléklet csatolása</li>
+                  {['Cím és részletes leírás (szövegformázással)', 'Kategória és prioritás (Alacsony / Közepes / Magas / Kritikus)', 'Felelős személy hozzárendelése', 'Fájlmelléklet csatolása'].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                  ))}
                 </ul>
               </div>
               <div>
@@ -81,12 +89,14 @@ export default function GuidePage() {
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700 mr-1">Várakozik</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Lezárt</span>
                 </div>
+                <p className="font-medium text-gray-900 mb-1 mt-4">Lezárt ticketek megjelenítése:</p>
+                <p className="text-gray-600 text-sm">A vezérlőpulton egy gombbal be- és kikapcsolható, hogy látszódjanak-e a lezárt ticketek. Alapból látszódnak.</p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Comments & Rich Text */}
+        {/* Comments */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>3</span>
@@ -98,15 +108,16 @@ export default function GuidePage() {
               <div>
                 <p className="font-medium text-gray-900 mb-2">Szövegformázási lehetőségek:</p>
                 <ul className="space-y-1 text-gray-600">
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> <strong>Félkövér</strong>, <em>dőlt</em>, aláhúzott szöveg</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Fejlécek (H2, H3), felsorolás, számozott lista</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Idézet (blockquote) és kódblokk</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Szövegigazítás (bal / közép / jobb)</li>
+                  {['Félkövér, dőlt, aláhúzott szöveg', 'Fejlécek (H2, H3), felsorolás, számozott lista', 'Idézet (blockquote) és kódblokk', 'Szövegigazítás (bal / közép / jobb)'].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                  ))}
                 </ul>
               </div>
               <div>
                 <p className="font-medium text-gray-900 mb-2">@Megemlítés:</p>
-                <p className="text-gray-600">Írd be a <code className="bg-gray-100 px-1 rounded text-xs">@</code> karaktert, majd a munkatárs nevét. A megjelenő listából kattintva illeszd be a megemlítést — az érintett értesítést kap e-mailben.</p>
+                <p className="text-gray-600">Írd be a <code className="bg-gray-100 px-1 rounded text-xs">@</code> karaktert, majd a munkatárs nevét. A megjelenő listából kattintva illeszd be — az érintett értesítést kap e-mailben.</p>
+                <p className="font-medium text-gray-900 mb-1 mt-3">Megjegyzés törlése:</p>
+                <p className="text-gray-600">Az erre jogosult felhasználó a megjegyzés mellett megjelenő kuka ikonnal törölheti azt. A törlés megerősítést kér.</p>
               </div>
             </div>
             <div className="bg-indigo-50 rounded-lg px-4 py-3 mt-2 text-indigo-800 text-sm">
@@ -125,43 +136,82 @@ export default function GuidePage() {
             <div>
               <p className="font-medium text-gray-900 mb-2">E-mail értesítések küldési esetei:</p>
               <ul className="space-y-1 text-gray-600">
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Új ticket létrehozásakor a felelősnek</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Megjegyzés hozzáadásakor az érintetteknek</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Státusz- vagy prioritásváltáskor</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> @megemlítéskor az érintett felhasználónak</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> SLA átlépésekor emlékeztető a felelősnek</li>
+                {['Új ticket létrehozásakor a felelősnek', 'Megjegyzés hozzáadásakor az érintetteknek', 'Státusz- vagy prioritásváltáskor', '@megemlítéskor az érintett felhasználónak', 'SLA átlépésekor emlékeztető a felelősnek', 'Irodai hetes értesítő (hétfőnként automatikusan)', 'Naptár egyéb esemény — ha a létrehozó értesítőt küld'].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                ))}
               </ul>
             </div>
             <div>
               <p className="font-medium text-gray-900 mb-2">Harangozó (Nudge) funkció:</p>
-              <p className="text-gray-600 mb-3">Ha egy ticket felelőse nem reagál, a csengő ikonra kattintva emlékeztetőt küldhetsz neki e-mailben. A rendszer megerősítést kér, és az eseményt a ticket tevékenységnaplójában rögzíti.</p>
+              <p className="text-gray-600 mb-3">Ha egy ticket felelőse nem reagál, a csengő ikonra kattintva emlékeztetőt küldhetsz neki e-mailben.</p>
               <p className="font-medium text-gray-900 mb-2">SLA-figyelés (48 óra):</p>
-              <p className="text-gray-600">Ha a felelős 48 órán belül nem reagál a ticketre, a rendszer automatikusan emlékeztető e-mailt küld. Ha nincs felelős rendelve, a létrehozót értesíti.</p>
+              <p className="text-gray-600 mb-3">Ha a felelős 48 órán belül nem reagál, a rendszer automatikusan emlékeztető e-mailt küld.</p>
+              <p className="font-medium text-gray-900 mb-2">Egyéni értesítési preferenciák:</p>
+              <p className="text-gray-600">Mindenki a saját profiljában kapcsolhatja ki/be az egyes értesítési típusokat (ticket, megemlítés, irodai hetes, naptár egyéb esemény).</p>
             </div>
+          </div>
+        </section>
+
+        {/* Calendar */}
+        <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>5</span>
+            Naptár
+          </h2>
+          <p className="text-sm text-gray-600 mb-4">A Naptár menüpont minden munkatársnak elérhető. Havi nézetben mutatja az összes eseményt.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-sm text-gray-700">
+            <div>
+              <p className="font-medium text-gray-900 mb-2">Szűrőnapok (Google Sheets szinkron):</p>
+              <ul className="space-y-1 text-gray-600">
+                {['A bejegyzések a Google Sheets táblázatból szinkronizálódnak', 'Frissítés gombbal bármikor szinkronizálható', 'Elmaradt szűrőnapok (áthúzott sorok) halványabban jelennek meg', 'A cella háttérszíne megjelenik a naptáron is'].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <p className="font-medium text-gray-900 mb-2">Irodai hetes rendszer:</p>
+              <ul className="space-y-1 text-gray-600 mb-3">
+                {['Automatikus hetenkénti rotáció a munkatársak között', 'Kizárható egyes munkatárs a rotációból (profil beállításokban)', 'Az adminisztrátor manuálisan is küldhet értesítő e-mailt', 'Újragenerálható a jövőbeli beosztás (jogosultság szükséges)'].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                ))}
+              </ul>
+              <p className="font-medium text-gray-900 mb-2">Egyéb naptáresemények és szabadságok:</p>
+              <ul className="space-y-1 text-gray-600">
+                {['Egyéb esemény létrehozásakor opcionálisan e-mail értesítő küldhető kiválasztott személyeknek vagy mindenkinek', 'Szabadságok rögzíthetők és megtekinthetők'].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <div className="bg-teal-50 rounded-lg px-4 py-3 mt-4 text-teal-800 text-sm">
+            <strong>Vezérlőpult sáv:</strong> A vezérlőpult tetején minden nap megjelenik az aznapi naptárbejegyzések összefoglalója (szűrőnapok, irodai hetes, szabadságok, egyéb események).
           </div>
         </section>
 
         {/* Team */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>5</span>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>6</span>
             Munkatársak kezelése
           </h2>
           <div className="space-y-3 text-sm text-gray-700">
-            <p>Az adminisztrátor hívhatja meg az új munkatársakat e-mail-cím alapján. A meghívó opcionálisan e-mailben is kiküldhető, de dönthet úgy is, hogy az ideiglenes jelszót személyesen adja át.</p>
+            <p>Az adminisztrátor (vagy megfelelő jogosultságú felhasználó) hívhatja meg az új munkatársakat e-mail-cím alapján.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="font-medium text-gray-900 mb-2">Meghíváskor megadható:</p>
                 <ul className="space-y-1 text-gray-600">
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Teljes név és szerepkör</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Ideiglenes jelszó</li>
-                  <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Meghívó e-mail küldésének be/kikapcsolása</li>
+                  {['Teljes név és szerepkör', 'Ideiglenes jelszó', 'Meghívó e-mail küldésének be/kikapcsolása'].map((item, i) => (
+                    <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                  ))}
                 </ul>
               </div>
               <div>
-                <p className="font-medium text-gray-900 mb-2">Felhasználó törlése:</p>
-                <p className="text-gray-600">Törléskor a korábbi ticketek és megjegyzések megmaradnak — a felhasználó neve helyén „[Törölt felhasználó]" jelenik meg.</p>
+                <p className="font-medium text-gray-900 mb-2">Fogaskerék ikon (Munkatársak oldal):</p>
+                <p className="text-gray-600">Az adminisztrátor a munkatárs mellett lévő fogaskerék ikonra kattintva szerkesztheti az egyéni jogosultságokat, e-mail preferenciákat, és kizárhatja a személyt az irodai rotációból.</p>
               </div>
+            </div>
+            <div className="bg-amber-50 rounded-lg px-4 py-3 text-amber-800 text-sm">
+              <strong>Névegyértelműsítés:</strong> Ha két munkatársnak azonos a keresztneve (pl. Kiss Anita, Hegyváriné Anita), a rendszer mindenhol a teljes nevüket jeleníti meg.
             </div>
           </div>
         </section>
@@ -169,7 +219,7 @@ export default function GuidePage() {
         {/* Saved Replies */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>6</span>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>7</span>
             Sablon válaszok
           </h2>
           <p className="text-sm text-gray-700">Minden felhasználónak saját sablon válasz gyűjteménye van. Ezek az előre megírt szövegrészletek egyetlen kattintással beilleszthetők a megjegyzésekbe, gyorsítva a visszajelzést. Mindenki csak a saját sablonjait látja és szerkesztheti.</p>
@@ -178,22 +228,24 @@ export default function GuidePage() {
         {/* Settings */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>7</span>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>8</span>
             Beállítások
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
               <p className="font-medium text-gray-900 mb-2">Profil szerkesztése:</p>
               <ul className="space-y-1 text-gray-600">
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Vezetéknév, keresztnév, becenév megadása</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Avatar kép URL beállítása</li>
-                <li className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span> Jelszó megváltoztatása</li>
+                {['Vezetéknév, keresztnév, becenév megadása', 'Avatar kép URL beállítása', 'Jelszó megváltoztatása'].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
+                ))}
               </ul>
-              <p className="mt-2 text-gray-500 text-xs">Ha becenév van megadva, az jelenik meg mindenhol. A profilkép kezdőbetűje: becenév &gt; keresztnév &gt; vezeteéknév.</p>
+              <p className="mt-2 text-gray-500 text-xs">Ha becenév van megadva, az jelenik meg mindenhol. A profilkép kezdőbetűje: becenév &gt; keresztnév &gt; vezetéknév.</p>
             </div>
             <div>
-              <p className="font-medium text-gray-900 mb-2">Kategóriák (admin):</p>
-              <p className="text-gray-600">Az adminisztrátor létrehozhatja és törölheti a ticket-kategóriákat, amelyek a ticketek csoportosítására szolgálnak.</p>
+              <p className="font-medium text-gray-900 mb-2">E-mail értesítési preferenciák:</p>
+              <p className="text-gray-600 mb-3">Mindenki a saját beállításaiban kapcsolhatja ki/be az egyes értesítési típusokat: ticket értesítések, @megemlítés, irodai hetes, naptár egyéb esemény.</p>
+              <p className="font-medium text-gray-900 mb-2">Kategóriák:</p>
+              <p className="text-gray-600">Az adminisztrátor és az arra jogosult felhasználó létrehozhatja és törölheti a ticket-kategóriákat.</p>
             </div>
           </div>
         </section>
@@ -201,26 +253,18 @@ export default function GuidePage() {
         {/* Activity Log */}
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>8</span>
+            <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>9</span>
             Tevékenységnapló
           </h2>
           <p className="text-sm text-gray-700">A <strong>Tevékenységek</strong> menüpont alatt megtekinthető az összes esemény: ki, mikor, mit változtatott. Szűrhető felhasználó szerint. Minden ticketen belül is megjelenik a saját tevékenységtörténet: státuszváltások, megjegyzések, emlékeztetők, felelős-változások.</p>
         </section>
 
-        {/* Footer */}
         <div className="text-center py-6">
-          <Link
-            href="/dashboard"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-colors"
-            style={{ background: '#6C5CE7' }}
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
+          <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-colors" style={{ background: '#6C5CE7' }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
             Vissza a myBatz Task felületre
           </Link>
         </div>
-
       </div>
     </div>
   )
