@@ -160,6 +160,7 @@ model ShiftDay {
   contactEmail  String?
   contactPhone  String?
   assignedTo    String?
+  forSelf       Boolean  @default(false)
   adMode        String?
   notes         String?
   shopCode      String?

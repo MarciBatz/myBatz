@@ -14,6 +14,7 @@ interface ShiftDay {
   contactPhone: string | null
   adMode: string | null
   assignedTo: string | null
+  forSelf: boolean
   notes: string | null
   shopCode: string | null
   syncedAt: string
@@ -158,7 +159,7 @@ export default function ShiftsPage() {
                     <p className={`text-xs font-medium text-right mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
                     {dayShifts.map(s => (
                       <div key={s.id} className="text-[10px] leading-tight rounded px-1 py-0.5 mb-0.5 text-white truncate"
-                        style={{ background: '#6C5CE7' }}>
+                        style={{ background: s.forSelf ? '#e53e3e' : '#6C5CE7' }}>
                         {s.location || s.shopName || '—'}
                       </div>
                     ))}

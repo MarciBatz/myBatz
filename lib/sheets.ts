@@ -12,6 +12,7 @@ interface SheetRow {
   contactPhone: string | null
   adMode: string | null
   assignedTo: string | null
+  forSelf: boolean
   notes: string | null
   shopCode: string | null
 }
@@ -94,6 +95,7 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
         contactEmail: row[7] || null,
         adMode: row[8] || null,
         assignedTo: row[9] || null,
+        forSelf: (row[10] || '').trim() === 'Magának',
         notes: row[13] || null,
         shopCode: row[18] || null,
       }
