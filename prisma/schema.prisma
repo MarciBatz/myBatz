@@ -56,6 +56,7 @@ model User {
   auditLogs       AuditLog[]
   calendarEvents  CalendarEvent[]
   officeWeeks     OfficeWeek[]
+  vacations       Vacation[]
 }
 
 model Invite {
@@ -183,6 +184,16 @@ model OfficeWeek {
   updatedAt      DateTime @updatedAt
 
   @@unique([weekStart])
+}
+
+model Vacation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  note      String?
+  createdAt DateTime @default(now())
 }
 
 model CalendarEvent {
