@@ -8,10 +8,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const session = await getSessionFromRequest(request)
   if (!session) return unauthorizedResponse()
 
-  const canManage = await hasPermission(session.id, session.role, 'canManageEmailNotifications')
-  if (session.role !== 'ADMIN' && !canManage) return forbiddenResponse()
-
   const { id } = await params
+
+  // Users can always fetch their own settings; others need canManageEmailNotifications or ADMIN
+  if (session.id !== id) {
+    const canManage = await hasPermission(session.id, session.role, 'canManageEmailNotifications')
+    if (session.role !== 'ADMIN' && !canManage) return forbiddenResponse()
+  }
   const [prefs, perms] = await Promise.all([
     prisma.userPreferences.findUnique({ where: { userId: id } }),
     prisma.userPermissions.findUnique({ where: { userId: id } }),
