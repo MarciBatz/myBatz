@@ -54,6 +54,7 @@ model User {
   notifications   NotificationLog[]
   savedReplies    SavedReply[]
   auditLogs       AuditLog[]
+  calendarEvents  CalendarEvent[]
 }
 
 model Invite {
@@ -169,6 +170,17 @@ model ShiftDay {
   syncedAt      DateTime @default(now())
 
   @@unique([rowIndex, sheetTab])
+}
+
+model CalendarEvent {
+  id          String   @id @default(cuid())
+  title       String
+  description String?
+  date        DateTime
+  type        String   @default("EGYEB")
+  createdById String?
+  createdBy   User?    @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
 }
 
 model AuditLog {

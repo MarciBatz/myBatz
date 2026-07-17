@@ -20,9 +20,27 @@ interface ShiftDay {
   syncedAt: string
 }
 
+interface CalendarEvent {
+  id: string
+  title: string
+  description: string | null
+  date: string
+  type: string
+  createdBy: { firstName: string | null; name: string | null; nickname: string | null; email: string } | null
+}
+
+type FilterType = 'osszes' | 'szuronap' | 'irodai' | 'egyeb'
+
 const MONTHS = ['Január', 'Február', 'Március', 'Április', 'Május', 'Június',
   'Július', 'Augusztus', 'Szeptember', 'Október', 'November', 'December']
 const DAYS = ['H', 'K', 'Sze', 'Cs', 'P', 'Szo', 'V']
+
+const FILTERS: { key: FilterType; label: string }[] = [
+  { key: 'osszes', label: 'Összes' },
+  { key: 'szuronap', label: 'Szűrőnapok' },
+  { key: 'irodai', label: 'Irodai hetes' },
+  { key: 'egyeb', label: 'Egyéb' },
+]
 
 function isSameDay(a: Date, b: Date) {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
@@ -33,21 +51,31 @@ export default function ShiftsPage() {
   const [year, setYear] = useState(now.getFullYear())
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [shifts, setShifts] = useState<ShiftDay[]>([])
+  const [events, setEvents] = useState<CalendarEvent[]>([])
   const [loading, setLoading] = useState(true)
+  const [filter, setFilter] = useState<FilterType>('osszes')
   const [selectedDayShifts, setSelectedDayShifts] = useState<ShiftDay[]>([])
-  const [selected, setSelected] = useState<ShiftDay | null>(null)
+  const [selectedShift, setSelectedShift] = useState<ShiftDay | null>(null)
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
+  const [showNewModal, setShowNewModal] = useState(false)
+  const [newDate, setNewDate] = useState('')
 
-  const loadShifts = useCallback(async () => {
+  const loadData = useCallback(async () => {
     setLoading(true)
-    const r = await fetch(`/api/shifts?year=${year}&month=${month}`)
-    const d = await r.json()
-    setShifts(d.shifts || [])
+    const [shiftsRes, eventsRes] = await Promise.all([
+      fetch(`/api/shifts?year=${year}&month=${month}`),
+      fetch(`/api/calendar-events?year=${year}&month=${month}`),
+    ])
+    const shiftsData = await shiftsRes.json()
+    const eventsData = await eventsRes.json()
+    setShifts(shiftsData.shifts || [])
+    setEvents(eventsData.events || [])
     setLoading(false)
   }, [year, month])
 
-  useEffect(() => { loadShifts() }, [loadShifts])
+  useEffect(() => { loadData() }, [loadData])
 
   function prevMonth() {
     if (month === 1) { setMonth(12); setYear(y => y - 1) }
@@ -66,17 +94,41 @@ export default function ShiftsPage() {
     const d = await r.json()
     if (r.ok) {
       setSyncResult(`✓ Szinkronizálva: ${d.upserted} szűrőnap`)
-      loadShifts()
+      loadData()
     } else {
       setSyncResult(`Hiba: ${d.error}`)
     }
     setSyncing(false)
   }
 
-  // Build calendar grid
+  function openDay(day: number) {
+    const dayShifts = filter !== 'egyeb' && filter !== 'irodai' ? shiftsForDay(day) : []
+    const dayEvents = filter !== 'szuronap' && filter !== 'irodai' ? eventsForDay(day) : []
+    if (dayShifts.length > 0) {
+      setSelectedDayShifts(dayShifts)
+      setSelectedShift(dayShifts[0])
+      setSelectedEvent(null)
+    } else if (dayEvents.length > 0) {
+      setSelectedEvent(dayEvents[0])
+      setSelectedShift(null)
+      setSelectedDayShifts([])
+    } else {
+      // Open new event modal pre-filled with that date
+      const d = new Date(year, month - 1, day)
+      setNewDate(d.toISOString().split('T')[0])
+      setShowNewModal(true)
+    }
+  }
+
+  function closeDetail() {
+    setSelectedShift(null)
+    setSelectedEvent(null)
+    setSelectedDayShifts([])
+  }
+
+  // Calendar grid
   const firstDay = new Date(year, month - 1, 1)
   const daysInMonth = new Date(year, month, 0).getDate()
-  // Monday-based: 0=Mon … 6=Sun
   const startOffset = (firstDay.getDay() + 6) % 7
   const cells: (number | null)[] = [
     ...Array(startOffset).fill(null),
@@ -89,25 +141,58 @@ export default function ShiftsPage() {
     return shifts.filter(s => isSameDay(new Date(s.date), d))
   }
 
+  function eventsForDay(day: number) {
+    const d = new Date(year, month - 1, day)
+    return events.filter(e => isSameDay(new Date(e.date), d))
+  }
+
+  function cellHasItems(day: number) {
+    const showShifts = filter === 'osszes' || filter === 'szuronap'
+    const showEvents = filter === 'osszes' || filter === 'egyeb'
+    return (showShifts && shiftsForDay(day).length > 0) || (showEvents && eventsForDay(day).length > 0)
+  }
+
   const upcomingShifts = shifts
     .filter(s => new Date(s.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
     .slice(0, 5)
 
+  const selectedDetail = selectedShift || selectedEvent
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-5">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Szűrőnapok naptára</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Google Sheets szinkronizáció alapján</p>
+          <h1 className="text-2xl font-bold text-gray-900">Naptár</h1>
+          <p className="text-gray-500 text-sm mt-0.5">Szűrőnapok, irodai hetes, egyéb bejegyzések</p>
         </div>
-        <button onClick={triggerSync} disabled={syncing}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl disabled:opacity-60"
-          style={{ background: '#6C5CE7' }}>
-          <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-          </svg>
-          {syncing ? 'Szinkronizálás...' : 'Frissítés'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => { setNewDate(''); setShowNewModal(true) }}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl"
+            style={{ background: '#6C5CE7' }}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Új bejegyzés
+          </button>
+          <button onClick={triggerSync} disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-gray-200 text-gray-700 rounded-xl hover:bg-gray-50 disabled:opacity-60">
+            <svg className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            {syncing ? 'Szinkronizálás...' : 'Frissítés'}
+          </button>
+        </div>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex gap-1 mb-5 bg-gray-100 p-1 rounded-xl w-fit">
+        {FILTERS.map(f => (
+          <button key={f.key} onClick={() => setFilter(f.key)}
+            className={`px-4 py-1.5 rounded-lg text-sm font-medium transition-all ${filter === f.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>
+            {f.label}
+          </button>
+        ))}
       </div>
 
       {syncResult && (
@@ -125,9 +210,7 @@ export default function ShiftsPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h2 className="text-base font-semibold text-gray-900">
-              {MONTHS[month - 1]} {year}
-            </h2>
+            <h2 className="text-base font-semibold text-gray-900">{MONTHS[month - 1]} {year}</h2>
             <button onClick={nextMonth} className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-600">
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -147,21 +230,28 @@ export default function ShiftsPage() {
             <div className="grid grid-cols-7 gap-1">
               {cells.map((day, i) => {
                 if (!day) return <div key={i} />
-                const dayShifts = shiftsForDay(day)
                 const isToday = isSameDay(new Date(year, month - 1, day), now)
+                const hasItems = cellHasItems(day)
+                const dayShifts = (filter === 'osszes' || filter === 'szuronap') ? shiftsForDay(day) : []
+                const dayEvents = (filter === 'osszes' || filter === 'egyeb') ? eventsForDay(day) : []
                 return (
                   <div
                     key={i}
+                    onClick={() => openDay(day)}
                     className={`min-h-[64px] rounded-lg p-1 cursor-pointer border transition-all ${
-                      isToday ? 'border-indigo-300 bg-indigo-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
+                      isToday ? 'border-indigo-300 bg-indigo-50' : hasItems ? 'border-transparent hover:border-gray-200 hover:bg-gray-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
                     }`}
-                    onClick={() => { if (dayShifts.length > 0) { setSelectedDayShifts(dayShifts); setSelected(dayShifts[0]) } }}
                   >
                     <p className={`text-xs font-medium text-right mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
                     {dayShifts.map(s => (
                       <div key={s.id} className="text-[10px] leading-tight rounded px-1 py-0.5 mb-0.5 text-white truncate"
                         style={{ background: s.forSelf ? '#e53e3e' : '#6C5CE7' }}>
                         {s.location || s.shopName || '—'}
+                      </div>
+                    ))}
+                    {dayEvents.map(e => (
+                      <div key={e.id} className="text-[10px] leading-tight rounded px-1 py-0.5 mb-0.5 text-white truncate bg-teal-500">
+                        {e.title}
                       </div>
                     ))}
                   </div>
@@ -171,13 +261,13 @@ export default function ShiftsPage() {
           )}
         </div>
 
-        {/* Sidebar: selected day detail or upcoming */}
+        {/* Sidebar */}
         <div className="space-y-4">
-          {selected ? (
+          {selectedDetail ? (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-900">Részletek</h3>
-                <button onClick={() => { setSelected(null); setSelectedDayShifts([]) }} className="text-gray-400 hover:text-gray-600">
+                <button onClick={closeDetail} className="text-gray-400 hover:text-gray-600">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
@@ -185,19 +275,21 @@ export default function ShiftsPage() {
               </div>
               {selectedDayShifts.length > 1 && (
                 <div className="flex gap-1 mb-4 flex-wrap">
-                  {selectedDayShifts.map((s, i) => (
-                    <button
-                      key={s.id}
-                      onClick={() => setSelected(s)}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selected.id === s.id ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      style={selected.id === s.id ? { background: s.forSelf ? '#e53e3e' : '#6C5CE7' } : {}}
-                    >
-                      {i + 1}. {s.shopName || s.location || `Szűrőnap`}
+                  {selectedDayShifts.map((s, idx) => (
+                    <button key={s.id} onClick={() => { setSelectedShift(s); setSelectedEvent(null) }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selectedShift?.id === s.id ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      style={selectedShift?.id === s.id ? { background: s.forSelf ? '#e53e3e' : '#6C5CE7' } : {}}>
+                      {idx + 1}. {s.shopName || s.location || 'Szűrőnap'}
                     </button>
                   ))}
                 </div>
               )}
-              <ShiftDetail shift={selected} />
+              {selectedShift && <ShiftDetail shift={selectedShift} />}
+              {selectedEvent && <EventDetail event={selectedEvent} onDelete={async () => {
+                await fetch(`/api/calendar-events/${selectedEvent.id}`, { method: 'DELETE' })
+                closeDetail()
+                loadData()
+              }} />}
             </div>
           ) : (
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
@@ -207,14 +299,13 @@ export default function ShiftsPage() {
               ) : (
                 <div className="space-y-3">
                   {upcomingShifts.map(s => (
-                    <button key={s.id} onClick={() => setSelected(s)}
+                    <button key={s.id} onClick={() => { setSelectedDayShifts([s]); setSelectedShift(s); setSelectedEvent(null) }}
                       className="w-full text-left p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all">
                       <p className="text-xs text-gray-400 mb-0.5">
                         {new Date(s.date).toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', weekday: 'short' })}
                         {s.timeStart && ` · ${s.timeStart}${s.timeEnd ? `–${s.timeEnd}` : ''}`}
                       </p>
                       <p className="text-sm font-medium text-gray-900 truncate">{s.shopName || s.location || '—'}</p>
-                      {s.location && s.shopName && <p className="text-xs text-gray-500 truncate">{s.location}</p>}
                       {s.assignedTo && <p className="text-xs text-indigo-600 mt-0.5">{s.assignedTo}</p>}
                     </button>
                   ))}
@@ -234,6 +325,14 @@ export default function ShiftsPage() {
           </div>
         </div>
       </div>
+
+      {showNewModal && (
+        <NewEventModal
+          initialDate={newDate}
+          onClose={() => setShowNewModal(false)}
+          onSaved={() => { setShowNewModal(false); loadData() }}
+        />
+      )}
     </div>
   )
 }
@@ -254,60 +353,125 @@ function ShiftDetail({ shift }: { shift: ShiftDay }) {
           <p className="text-gray-900">{shift.timeStart}{shift.timeEnd ? ` – ${shift.timeEnd}` : ''}</p>
         </div>
       )}
-      {shift.shopName && (
+      {shift.shopName && <div><p className="text-xs text-gray-400 mb-0.5">Bolt neve</p><p className="text-gray-900">{shift.shopName}</p></div>}
+      {shift.location && <div><p className="text-xs text-gray-400 mb-0.5">Helyszín</p><p className="text-gray-900">{shift.location}</p></div>}
+      {shift.address && <div><p className="text-xs text-gray-400 mb-0.5">Cím</p><p className="text-gray-900">{shift.address}</p></div>}
+      {shift.assignedTo && <div><p className="text-xs text-gray-400 mb-0.5">Ki megy</p><p className="font-medium text-indigo-700">{shift.assignedTo}</p></div>}
+      {shift.adMode && <div><p className="text-xs text-gray-400 mb-0.5">Hirdetési mód</p><p className="text-gray-900">{shift.adMode}</p></div>}
+      {shift.contactPhone && <div><p className="text-xs text-gray-400 mb-0.5">Telefon</p><a href={`tel:${shift.contactPhone}`} className="text-indigo-600 hover:underline">{shift.contactPhone}</a></div>}
+      {shift.contactEmail && <div><p className="text-xs text-gray-400 mb-0.5">Email</p><a href={`mailto:${shift.contactEmail}`} className="text-indigo-600 hover:underline truncate block">{shift.contactEmail}</a></div>}
+      {shift.notes && <div><p className="text-xs text-gray-400 mb-0.5">Megjegyzések</p><p className="text-gray-700 text-xs leading-relaxed">{shift.notes}</p></div>}
+      {shift.shopCode && <div><p className="text-xs text-gray-400 mb-0.5">Boltkód</p><span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono">{shift.shopCode}</span></div>}
+    </div>
+  )
+}
+
+function EventDetail({ event, onDelete }: { event: CalendarEvent; onDelete: () => void }) {
+  const date = new Date(event.date)
+  const creatorName = event.createdBy
+    ? event.createdBy.nickname || event.createdBy.firstName || event.createdBy.name || event.createdBy.email
+    : null
+  return (
+    <div className="space-y-3 text-sm">
+      <div>
+        <p className="text-xs text-gray-400 mb-0.5">Dátum</p>
+        <p className="font-medium text-gray-900">
+          {date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+        </p>
+      </div>
+      <div>
+        <p className="text-xs text-gray-400 mb-0.5">Bejegyzés</p>
+        <p className="font-medium text-gray-900">{event.title}</p>
+      </div>
+      {event.description && (
         <div>
-          <p className="text-xs text-gray-400 mb-0.5">Bolt neve</p>
-          <p className="text-gray-900">{shift.shopName}</p>
+          <p className="text-xs text-gray-400 mb-0.5">Leírás</p>
+          <p className="text-gray-700 text-xs leading-relaxed">{event.description}</p>
         </div>
       )}
-      {shift.location && (
+      {creatorName && (
         <div>
-          <p className="text-xs text-gray-400 mb-0.5">Helyszín</p>
-          <p className="text-gray-900">{shift.location}</p>
+          <p className="text-xs text-gray-400 mb-0.5">Rögzítette</p>
+          <p className="text-gray-900">{creatorName}</p>
         </div>
       )}
-      {shift.address && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Cím</p>
-          <p className="text-gray-900">{shift.address}</p>
+      <button onClick={onDelete}
+        className="mt-2 w-full text-center text-xs text-red-500 hover:text-red-700 py-1.5 border border-red-100 rounded-lg hover:bg-red-50 transition-all">
+        Törlés
+      </button>
+    </div>
+  )
+}
+
+function NewEventModal({ initialDate, onClose, onSaved }: {
+  initialDate: string
+  onClose: () => void
+  onSaved: () => void
+}) {
+  const [title, setTitle] = useState('')
+  const [description, setDescription] = useState('')
+  const [date, setDate] = useState(initialDate || new Date().toISOString().split('T')[0])
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  async function handleSave() {
+    if (!title.trim()) { setError('A cím megadása kötelező'); return }
+    setSaving(true)
+    const r = await fetch('/api/calendar-events', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: title.trim(), description: description.trim() || null, date, type: 'EGYEB' }),
+    })
+    if (r.ok) {
+      onSaved()
+    } else {
+      const d = await r.json()
+      setError(d.error || 'Hiba történt')
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6">
+        <div className="flex items-center justify-between mb-5">
+          <h2 className="text-lg font-semibold text-gray-900">Új bejegyzés</h2>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-      )}
-      {shift.assignedTo && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Ki megy</p>
-          <p className="font-medium text-indigo-700">{shift.assignedTo}</p>
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Dátum</label>
+            <input type="date" value={date} onChange={e => setDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Cím *</label>
+            <input type="text" value={title} onChange={e => setTitle(e.target.value)} placeholder="pl. Csapattalálkozó"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Leírás (opcionális)</label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3}
+              placeholder="További részletek..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none" />
+          </div>
+          {error && <p className="text-xs text-red-500">{error}</p>}
         </div>
-      )}
-      {shift.adMode && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Hirdetési mód</p>
-          <p className="text-gray-900">{shift.adMode}</p>
+        <div className="flex gap-3 mt-6">
+          <button onClick={onClose} className="flex-1 py-2 text-sm font-medium text-gray-700 border border-gray-200 rounded-xl hover:bg-gray-50">
+            Mégse
+          </button>
+          <button onClick={handleSave} disabled={saving}
+            className="flex-1 py-2 text-sm font-medium text-white rounded-xl disabled:opacity-60"
+            style={{ background: '#6C5CE7' }}>
+            {saving ? 'Mentés...' : 'Mentés'}
+          </button>
         </div>
-      )}
-      {shift.contactPhone && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Telefon</p>
-          <a href={`tel:${shift.contactPhone}`} className="text-indigo-600 hover:underline">{shift.contactPhone}</a>
-        </div>
-      )}
-      {shift.contactEmail && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Email</p>
-          <a href={`mailto:${shift.contactEmail}`} className="text-indigo-600 hover:underline truncate block">{shift.contactEmail}</a>
-        </div>
-      )}
-      {shift.notes && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Megjegyzések</p>
-          <p className="text-gray-700 text-xs leading-relaxed">{shift.notes}</p>
-        </div>
-      )}
-      {shift.shopCode && (
-        <div>
-          <p className="text-xs text-gray-400 mb-0.5">Boltkód</p>
-          <span className="inline-block px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-mono">{shift.shopCode}</span>
-        </div>
-      )}
+      </div>
     </div>
   )
 }
