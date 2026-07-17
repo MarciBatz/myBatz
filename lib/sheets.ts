@@ -26,9 +26,31 @@ function parseTime(val: string): { start: string | null; end: string | null } {
 
 function parseDate(val: string): string | null {
   if (!val) return null
-  // Handle "2026.03.24." format
-  const match = val.match(/(\d{4})\.(\d{2})\.(\d{2})/)
-  if (match) return `${match[1]}-${match[2]}-${match[3]}`
+  // Handle "2026.03.24." or "2026.3.24." format (1 or 2 digit month/day)
+  const dotMatch = val.match(/(\d{4})\.(\d{1,2})\.(\d{1,2})/)
+  if (dotMatch) {
+    const y = dotMatch[1]
+    const m = dotMatch[2].padStart(2, '0')
+    const d = dotMatch[3].padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  // Handle "YYYY-MM-DD" format
+  const isoMatch = val.match(/(\d{4})-(\d{1,2})-(\d{1,2})/)
+  if (isoMatch) {
+    const y = isoMatch[1]
+    const m = isoMatch[2].padStart(2, '0')
+    const d = isoMatch[3].padStart(2, '0')
+    return `${y}-${m}-${d}`
+  }
+  // Handle Google Sheets serial date number (days since 1899-12-30)
+  const serial = parseFloat(val)
+  if (!isNaN(serial) && serial > 40000 && serial < 60000) {
+    const d = new Date((serial - 25569) * 86400 * 1000)
+    const y = d.getUTCFullYear()
+    const mo = String(d.getUTCMonth() + 1).padStart(2, '0')
+    const day = String(d.getUTCDate()).padStart(2, '0')
+    return `${y}-${mo}-${day}`
+  }
   return null
 }
 
@@ -61,7 +83,7 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
   // Get access token via JWT
   const token = await getAccessToken(sa)
 
-  const range = encodeURIComponent(`${tab}!A2:S500`)
+  const range = encodeURIComponent(`${tab}!A2:S2000`)
   const url = `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${range}`
 
   const res = await fetch(url, {
