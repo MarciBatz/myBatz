@@ -93,7 +93,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const [agents, setAgents] = useState<{ id: string; name: string | null; email: string }[]>([])
 
   // Filters
-  const [showClosed, setShowClosed] = useState(false)
+  const [showClosed, setShowClosed] = useState(true)
   const [status, setStatus] = useState('')
   const [priority, setPriority] = useState('')
   const [categoryId, setCategoryId] = useState('')
