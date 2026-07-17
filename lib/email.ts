@@ -332,3 +332,31 @@ export async function sendRoleChangedEmail(
     `,
   })
 }
+
+export async function sendOfficeWeekReminderEmail(
+  user: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  weekStart: Date
+): Promise<void> {
+  const greeting = user.nickname || user.firstName || user.name || 'Kolléga'
+  const weekLabel = weekStart.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
+  await sendEmail({
+    to: user.email,
+    subject: 'myBatz Task – Ezen a héten te vagy az irodai hetes 🧹',
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6C5CE7;">Irodai hetes emlékeztető</h2>
+        <p>Szia ${greeting},</p>
+        <p>Emlékeztetőül: ezen a héten (${weekLabel}től) <strong>te vagy az irodai hetes</strong>.</p>
+        <p style="font-weight:bold; margin-top:20px;">Feladataid erre a hétre:</p>
+        <ul style="line-height:2; color:#333;">
+          <li>Konyha tisztántartása (pult, asztal, csepegtető alatt törlés)</li>
+          <li>Ebéd után a mosogatógép elindítása, délután/másnap reggel kipakolása</li>
+          <li>Csepegtetőn lévő elmosott dolgok elpakolása</li>
+          <li>Mikró takarítása</li>
+        </ul>
+        <p style="color:#666; font-size:14px;">Köszönjük a közreműködést! 🙏</p>
+        <p style="color:#aaa; font-size:12px; margin-top:24px;">myBatz Task értesítő</p>
+      </div>
+    `,
+  })
+}

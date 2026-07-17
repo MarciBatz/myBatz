@@ -55,6 +55,7 @@ model User {
   savedReplies    SavedReply[]
   auditLogs       AuditLog[]
   calendarEvents  CalendarEvent[]
+  officeWeeks     OfficeWeek[]
 }
 
 model Invite {
@@ -170,6 +171,18 @@ model ShiftDay {
   syncedAt      DateTime @default(now())
 
   @@unique([rowIndex, sheetTab])
+}
+
+model OfficeWeek {
+  id             String   @id @default(cuid())
+  weekStart      DateTime
+  assignedUserId String?
+  assignedUser   User?    @relation(fields: [assignedUserId], references: [id], onDelete: SetNull)
+  isManual       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([weekStart])
 }
 
 model CalendarEvent {
