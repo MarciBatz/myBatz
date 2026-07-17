@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
   const month = parseInt(searchParams.get('month') || '0')
 
   // Generate upcoming weeks if needed
-  await generateOfficeWeeks(16)
+  await generateOfficeWeeks(52)
 
   let weeks: Awaited<ReturnType<typeof prisma.officeWeek.findMany>>
   if (year && month) {

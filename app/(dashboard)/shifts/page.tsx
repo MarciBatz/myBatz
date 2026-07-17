@@ -23,6 +23,12 @@ interface Vacation {
   user: { id: string; name: string | null; firstName: string | null; nickname: string | null; email: string }
 }
 
+type DayItem =
+  | { kind: 'shift'; data: ShiftDay }
+  | { kind: 'event'; data: CalendarEvent }
+  | { kind: 'office'; data: OfficeWeek }
+  | { kind: 'vacation'; data: Vacation }
+
 type FilterKey = 'szuronap' | 'irodai' | 'egyeb' | 'szabadsag'
 const ALL_FILTERS: FilterKey[] = ['szuronap', 'irodai', 'egyeb', 'szabadsag']
 const FILTER_LABELS: Record<FilterKey, string> = {
@@ -55,11 +61,8 @@ export default function ShiftsPage() {
   const [allUsers, setAllUsers] = useState<SimpleUser[]>([])
   const [loading, setLoading] = useState(true)
   const [activeFilters, setActiveFilters] = useState<Set<FilterKey>>(new Set(ALL_FILTERS))
-  const [selectedDayShifts, setSelectedDayShifts] = useState<ShiftDay[]>([])
-  const [selectedShift, setSelectedShift] = useState<ShiftDay | null>(null)
-  const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null)
-  const [selectedOfficeWeek, setSelectedOfficeWeek] = useState<OfficeWeek | null>(null)
-  const [selectedVacation, setSelectedVacation] = useState<Vacation | null>(null)
+  const [selectedDayItems, setSelectedDayItems] = useState<DayItem[]>([])
+  const [selectedItem, setSelectedItem] = useState<DayItem | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
@@ -136,32 +139,20 @@ export default function ShiftsPage() {
 
   function openDay(day: number) {
     const d = new Date(Date.UTC(year, month-1, day))
-    const dayShifts = activeFilters.has('szuronap') ? shiftsForDay(day) : []
-    const dayEvents = activeFilters.has('egyeb') ? eventsForDay(day) : []
-    const officeWeek = activeFilters.has('irodai') ? getOfficeWeekForDay(day) : null
-    const dayVacs = activeFilters.has('szabadsag') ? vacationsForDay(day) : []
+    const items: DayItem[] = []
+    if (activeFilters.has('irodai')) { const ow = getOfficeWeekForDay(day); if (ow) items.push({ kind: 'office', data: ow }) }
+    if (activeFilters.has('szuronap')) shiftsForDay(day).forEach(s => items.push({ kind: 'shift', data: s }))
+    if (activeFilters.has('szabadsag')) vacationsForDay(day).forEach(v => items.push({ kind: 'vacation', data: v }))
+    if (activeFilters.has('egyeb')) eventsForDay(day).forEach(e => items.push({ kind: 'event', data: e }))
 
-    if (dayShifts.length > 0) {
-      setSelectedDayShifts(dayShifts); setSelectedShift(dayShifts[0])
-      setSelectedEvent(null); setSelectedOfficeWeek(null); setSelectedVacation(null)
-    } else if (dayEvents.length > 0) {
-      setSelectedEvent(dayEvents[0]); setSelectedShift(null); setSelectedDayShifts([])
-      setSelectedOfficeWeek(null); setSelectedVacation(null)
-    } else if (dayVacs.length > 0) {
-      setSelectedVacation(dayVacs[0]); setSelectedShift(null); setSelectedDayShifts([])
-      setSelectedEvent(null); setSelectedOfficeWeek(null)
-    } else if (officeWeek) {
-      setSelectedOfficeWeek(officeWeek); setSelectedShift(null); setSelectedDayShifts([])
-      setSelectedEvent(null); setSelectedVacation(null)
-    } else {
+    if (items.length === 0) {
       setNewDate(d.toISOString().split('T')[0]); setShowNewModal(true)
+    } else {
+      setSelectedDayItems(items); setSelectedItem(items[0])
     }
   }
 
-  function closeDetail() {
-    setSelectedShift(null); setSelectedEvent(null); setSelectedDayShifts([])
-    setSelectedOfficeWeek(null); setSelectedVacation(null)
-  }
+  function closeDetail() { setSelectedDayItems([]); setSelectedItem(null) }
 
   const firstDay = new Date(Date.UTC(year, month-1, 1))
   const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate()
@@ -173,7 +164,7 @@ export default function ShiftsPage() {
     .filter(s => new Date(s.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
     .slice(0, 5)
 
-  const selectedDetail = selectedShift || selectedEvent || selectedOfficeWeek || selectedVacation
+  const selectedDetail = selectedItem
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -297,28 +288,39 @@ export default function ShiftsPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
                 </button>
               </div>
-              {selectedDayShifts.length > 1 && (
+              {selectedDayItems.length > 1 && (
                 <div className="flex gap-1 mb-4 flex-wrap">
-                  {selectedDayShifts.map((s, idx) => (
-                    <button key={s.id} onClick={() => { setSelectedShift(s); setSelectedEvent(null); setSelectedOfficeWeek(null); setSelectedVacation(null) }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selectedShift?.id === s.id ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                      style={selectedShift?.id === s.id ? { background: s.forSelf ? '#e53e3e' : '#6C5CE7' } : {}}>
-                      {idx+1}. {s.shopName || s.location || 'Szűrőnap'}
-                    </button>
-                  ))}
+                  {selectedDayItems.map((item, idx) => {
+                    const active = selectedItem === item
+                    const label = item.kind === 'shift' ? (item.data.shopName || item.data.location || 'Szűrőnap')
+                      : item.kind === 'office' ? '🧹 Hetes'
+                      : item.kind === 'vacation' ? `🏖 ${uName(item.data.user)}`
+                      : item.data.title
+                    const bg = item.kind === 'shift' ? (item.data.forSelf ? '#e53e3e' : '#6C5CE7')
+                      : item.kind === 'office' ? '#fb923c'
+                      : item.kind === 'vacation' ? '#38bdf8'
+                      : '#14b8a6'
+                    return (
+                      <button key={idx} onClick={() => setSelectedItem(item)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${active ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                        style={active ? { background: bg } : {}}>
+                        {label}
+                      </button>
+                    )
+                  })}
                 </div>
               )}
-              {selectedShift && <ShiftDetail shift={selectedShift} />}
-              {selectedEvent && <EventDetail event={selectedEvent} onDelete={async () => {
-                await fetch(`/api/calendar-events/${selectedEvent.id}`, { method: 'DELETE' })
+              {selectedItem?.kind === 'shift' && <ShiftDetail shift={selectedItem.data} />}
+              {selectedItem?.kind === 'event' && <EventDetail event={selectedItem.data} onDelete={async () => {
+                await fetch(`/api/calendar-events/${(selectedItem.data as CalendarEvent).id}`, { method: 'DELETE' })
                 closeDetail(); loadData()
               }} />}
-              {selectedOfficeWeek && <OfficeWeekDetail week={selectedOfficeWeek} allUsers={allUsers} isAdmin={isAdmin} onChanged={loadData} />}
-              {selectedVacation && (
-                <VacationDetail vacation={selectedVacation}
-                  canDelete={selectedVacation.user.id === currentUserId || isAdmin}
+              {selectedItem?.kind === 'office' && <OfficeWeekDetail week={selectedItem.data} allUsers={allUsers} isAdmin={isAdmin} onChanged={loadData} />}
+              {selectedItem?.kind === 'vacation' && (
+                <VacationDetail vacation={selectedItem.data}
+                  canDelete={(selectedItem.data as Vacation).user.id === currentUserId || isAdmin}
                   onDelete={async () => {
-                    await fetch(`/api/vacations/${selectedVacation.id}`, { method: 'DELETE' })
+                    await fetch(`/api/vacations/${(selectedItem.data as Vacation).id}`, { method: 'DELETE' })
                     closeDetail(); loadData()
                   }} />
               )}
@@ -329,7 +331,7 @@ export default function ShiftsPage() {
               {upcomingShifts.length === 0 ? <p className="text-sm text-gray-400">Nincs közelgő szűrőnap</p> : (
                 <div className="space-y-3">
                   {upcomingShifts.map(s => (
-                    <button key={s.id} onClick={() => { setSelectedDayShifts([s]); setSelectedShift(s); setSelectedEvent(null); setSelectedOfficeWeek(null); setSelectedVacation(null) }}
+                    <button key={s.id} onClick={() => { const item: DayItem = { kind: 'shift', data: s }; setSelectedDayItems([item]); setSelectedItem(item) }}
                       className="w-full text-left p-3 rounded-lg border border-gray-100 hover:border-indigo-200 hover:bg-indigo-50/50 transition-all">
                       <p className="text-xs text-gray-400 mb-0.5">
                         {new Date(s.date).toLocaleDateString('hu-HU', { month: 'long', day: 'numeric', weekday: 'short' })}
@@ -477,6 +479,7 @@ function OfficeWeekDetail({ week, allUsers, isAdmin, onChanged }: { week: Office
           <li>• Ebéd után a mosogatógép elindítása, délután/másnap reggel kipakolása</li>
           <li>• Csepegtetőn lévő elmosott dolgok elpakolása</li>
           <li>• Mikró takarítása</li>
+          <li>• Kuka napi ürítése</li>
         </ul>
       </div>
     </div>

@@ -341,7 +341,7 @@ export async function sendOfficeWeekReminderEmail(
   const weekLabel = weekStart.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
   await sendEmail({
     to: user.email,
-    subject: 'myBatz Task – Ezen a héten te vagy az irodai hetes 🧹',
+    subject: 'Ezen a héten te vagy az irodai hetes 🧹',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Irodai hetes emlékeztető</h2>
@@ -353,6 +353,7 @@ export async function sendOfficeWeekReminderEmail(
           <li>Ebéd után a mosogatógép elindítása, délután/másnap reggel kipakolása</li>
           <li>Csepegtetőn lévő elmosott dolgok elpakolása</li>
           <li>Mikró takarítása</li>
+          <li>Kuka napi ürítése</li>
         </ul>
         <p style="color:#666; font-size:14px;">Köszönjük a közreműködést! 🙏</p>
         <p style="color:#aaa; font-size:12px; margin-top:24px;">myBatz Task értesítő</p>

@@ -51,7 +51,13 @@ export async function POST(request: NextRequest) {
       upserted++
     }
 
-    return NextResponse.json({ ok: true, upserted, total: rows.length })
+    // Delete rows no longer present in the sheet
+    const currentRowIndexes = rows.map(r => r.rowIndex)
+    const deleted = await prisma.shiftDay.deleteMany({
+      where: { sheetTab: tab, rowIndex: { notIn: currentRowIndexes } },
+    })
+
+    return NextResponse.json({ ok: true, upserted, deleted: deleted.count, total: rows.length })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     if (error instanceof Error && error.message === 'FORBIDDEN') return forbiddenResponse()
