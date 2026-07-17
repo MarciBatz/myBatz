@@ -10,7 +10,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const event = await prisma.calendarEvent.findUnique({ where: { id } })
   if (!event) return NextResponse.json({ error: 'Nem található' }, { status: 404 })
 
-  if (event.createdById !== session.userId && session.role !== 'ADMIN') return forbiddenResponse()
+  if (event.createdById !== session.id && session.role !== 'ADMIN') return forbiddenResponse()
 
   await prisma.calendarEvent.delete({ where: { id } })
   return NextResponse.json({ ok: true })

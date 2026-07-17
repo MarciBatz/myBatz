@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
       description: description || null,
       date: new Date(date),
       type: type || 'EGYEB',
-      createdById: session.userId,
+      createdById: session.id,
     },
   })
 
