@@ -149,6 +149,27 @@ model SavedReply {
   createdAt   DateTime @default(now())
 }
 
+model ShiftDay {
+  id            String   @id @default(cuid())
+  date          DateTime
+  timeStart     String?
+  timeEnd       String?
+  location      String?
+  shopName      String?
+  address       String?
+  contactEmail  String?
+  contactPhone  String?
+  assignedTo    String?
+  adMode        String?
+  notes         String?
+  shopCode      String?
+  rowIndex      Int
+  sheetTab      String   @default("2026")
+  syncedAt      DateTime @default(now())
+
+  @@unique([rowIndex, sheetTab])
+}
+
 model AuditLog {
   id        String   @id @default(cuid())
   userId    String?
