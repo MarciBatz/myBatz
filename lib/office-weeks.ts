@@ -13,17 +13,12 @@ export function getMonday(date: Date): Date {
 }
 
 export async function generateOfficeWeeks(weeksAhead = 12) {
-  const users = await prisma.user.findMany({
-    where: {
-      status: 'ACTIVE',
-      role: { in: ['ADMIN', 'AGENT'] },
-      NOT: {
-        preferences: { excludeFromOfficeRotation: true },
-      },
-    },
+  const allUsers = await prisma.user.findMany({
+    where: { status: 'ACTIVE', role: { in: ['ADMIN', 'AGENT'] } },
     orderBy: [{ name: 'asc' }],
-    select: { id: true, name: true },
+    select: { id: true, name: true, preferences: { select: { excludeFromOfficeRotation: true } } },
   })
+  const users = allUsers.filter(u => !u.preferences?.excludeFromOfficeRotation)
   if (users.length === 0) return 0
 
   const todayMonday = getMonday(new Date())
