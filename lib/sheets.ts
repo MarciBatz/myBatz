@@ -94,7 +94,7 @@ export async function fetchSheetRows(tab: string = '2026'): Promise<SheetRow[]> 
         contactPhone: row[6] || null,
         contactEmail: row[7] || null,
         adMode: row[8] || null,
-        assignedTo: row[9] || null,
+        assignedTo: row[10] || null,
         forSelf: (row[10] || '').trim() === 'Magának',
         notes: row[13] || null,
         shopCode: row[18] || null,

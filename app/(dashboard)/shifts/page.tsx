@@ -34,6 +34,7 @@ export default function ShiftsPage() {
   const [month, setMonth] = useState(now.getMonth() + 1)
   const [shifts, setShifts] = useState<ShiftDay[]>([])
   const [loading, setLoading] = useState(true)
+  const [selectedDayShifts, setSelectedDayShifts] = useState<ShiftDay[]>([])
   const [selected, setSelected] = useState<ShiftDay | null>(null)
   const [syncing, setSyncing] = useState(false)
   const [syncResult, setSyncResult] = useState<string | null>(null)
@@ -154,7 +155,7 @@ export default function ShiftsPage() {
                     className={`min-h-[64px] rounded-lg p-1 cursor-pointer border transition-all ${
                       isToday ? 'border-indigo-300 bg-indigo-50' : 'border-transparent hover:border-gray-200 hover:bg-gray-50'
                     }`}
-                    onClick={() => dayShifts.length > 0 && setSelected(dayShifts[0])}
+                    onClick={() => { if (dayShifts.length > 0) { setSelectedDayShifts(dayShifts); setSelected(dayShifts[0]) } }}
                   >
                     <p className={`text-xs font-medium text-right mb-1 ${isToday ? 'text-indigo-600' : 'text-gray-500'}`}>{day}</p>
                     {dayShifts.map(s => (
@@ -176,12 +177,26 @@ export default function ShiftsPage() {
             <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-gray-900">Részletek</h3>
-                <button onClick={() => setSelected(null)} className="text-gray-400 hover:text-gray-600">
+                <button onClick={() => { setSelected(null); setSelectedDayShifts([]) }} className="text-gray-400 hover:text-gray-600">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
+              {selectedDayShifts.length > 1 && (
+                <div className="flex gap-1 mb-4 flex-wrap">
+                  {selectedDayShifts.map((s, i) => (
+                    <button
+                      key={s.id}
+                      onClick={() => setSelected(s)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all ${selected.id === s.id ? 'text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                      style={selected.id === s.id ? { background: s.forSelf ? '#e53e3e' : '#6C5CE7' } : {}}
+                    >
+                      {i + 1}. {s.shopName || s.location || `Szűrőnap`}
+                    </button>
+                  ))}
+                </div>
+              )}
               <ShiftDetail shift={selected} />
             </div>
           ) : (
