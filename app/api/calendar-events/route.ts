@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, unauthorizedResponse } from '@/lib/auth'
+import { getSessionFromRequest, unauthorizedResponse } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
-  const session = await getSession(request)
+  const session = await getSessionFromRequest(request)
   if (!session) return unauthorizedResponse()
 
   const { searchParams } = new URL(request.url)
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession(request)
+  const session = await getSessionFromRequest(request)
   if (!session) return unauthorizedResponse()
 
   const body = await request.json()

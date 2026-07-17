@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { getSession, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession(request)
+  const session = await getSessionFromRequest(request)
   if (!session) return unauthorizedResponse()
 
   const { id } = await params
