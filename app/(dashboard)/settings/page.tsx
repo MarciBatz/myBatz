@@ -17,7 +17,8 @@ export default function SettingsPage() {
   const [profileSuccess, setProfileSuccess] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
 
-  const [currentUser, setCurrentUser] = useState<{ role: string } | null>(null)
+  const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null)
+  const [canManageCategories, setCanManageCategories] = useState(false)
 
   useEffect(() => {
     loadCategories()
@@ -30,6 +31,13 @@ export default function SettingsPage() {
         nickname: u.nickname || '',
         avatarUrl: u.avatarUrl || '',
       })
+      if (u.role === 'ADMIN') {
+        setCanManageCategories(true)
+      } else if (u.id) {
+        fetch(`/api/users/${u.id}/settings`).then(r => r.json()).then(s => {
+          setCanManageCategories(s.permissions?.canManageCategories === true)
+        })
+      }
     })
   }, [])
 
@@ -198,8 +206,8 @@ export default function SettingsPage() {
           </form>
         </div>
 
-        {/* Categories (admin only) */}
-        {isAdmin && (
+        {/* Categories */}
+        {canManageCategories && (
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
             <h2 className="text-lg font-semibold text-gray-900 mb-4">Kategóriák</h2>
             <form onSubmit={addCategory} className="flex gap-3 mb-4">
