@@ -79,9 +79,27 @@ export default function AgentsPage() {
   // Regenerate schedule
   const [regenerating, setRegenerating] = useState(false)
 
+  // Non-admin permissions
+  const [canSendInvites, setCanSendInvites] = useState(false)
+  const [canRegenerateOfficeSchedule, setCanRegenerateOfficeSchedule] = useState(false)
+  const [canManageEmailNotifications, setCanManageEmailNotifications] = useState(false)
+
   useEffect(() => {
     loadUsers()
-    fetch('/api/auth/me').then(r => r.json()).then(d => setCurrentUser(d.user))
+    fetch('/api/auth/me').then(r => r.json()).then(d => {
+      setCurrentUser(d.user)
+      if (d.user?.role === 'ADMIN') {
+        setCanSendInvites(true)
+        setCanRegenerateOfficeSchedule(true)
+        setCanManageEmailNotifications(true)
+      } else if (d.user?.id) {
+        fetch(`/api/users/${d.user.id}/settings`).then(r => r.json()).then(s => {
+          setCanSendInvites(s.permissions?.canSendInvites === true)
+          setCanRegenerateOfficeSchedule(s.permissions?.canRegenerateOfficeSchedule === true)
+          setCanManageEmailNotifications(s.permissions?.canManageEmailNotifications === true)
+        })
+      }
+    })
   }, [])
 
   async function loadUsers() {
@@ -250,7 +268,7 @@ export default function AgentsPage() {
           <p className="text-gray-500 text-sm mt-0.5">Csapattagok kezelése</p>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
+          {canRegenerateOfficeSchedule && (
             <button onClick={regenerateSchedule} disabled={regenerating}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -259,7 +277,7 @@ export default function AgentsPage() {
               {regenerating ? 'Generálás...' : 'Irodai beosztás újragenerálása'}
             </button>
           )}
-          {isAdmin && (
+          {canSendInvites && (
             <button onClick={openInviteModal}
               className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl"
               style={{ background: '#6C5CE7' }}>
@@ -285,7 +303,7 @@ export default function AgentsPage() {
                 <th className="px-4 py-3 font-medium">Utoljára aktív</th>
                 <th className="px-4 py-3 font-medium">Csatlakozott</th>
                 {isAdmin && <th className="px-4 py-3 font-medium">Műveletek</th>}
-                {isAdmin && <th className="px-4 py-3 font-medium"></th>}
+                {canManageEmailNotifications && <th className="px-4 py-3 font-medium"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -362,7 +380,7 @@ export default function AgentsPage() {
                       </div>
                     </td>
                   )}
-                  {isAdmin && (
+                  {canManageEmailNotifications && (
                     <td className="px-4 py-4">
                       <button onClick={() => openSettings(u)} title="Beállítások"
                         className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">

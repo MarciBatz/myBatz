@@ -163,6 +163,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [canDeleteComments, setCanDeleteComments] = useState(false)
+  const [canDeleteTickets, setCanDeleteTickets] = useState(false)
   const [deleteCommentTarget, setDeleteCommentTarget] = useState<string | null>(null)
   const [deletingComment, setDeletingComment] = useState(false)
   const [mentionQuery, setMentionQuery] = useState<string | null>(null)
@@ -182,9 +183,10 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
     fetch('/api/saved-replies').then(r => r.json()).then(d => setSavedReplies(d.replies || []))
     fetch('/api/auth/me').then(r => r.json()).then(d => {
-      if (d.user?.role === 'ADMIN') { setCanDeleteComments(true); return }
+      if (d.user?.role === 'ADMIN') { setCanDeleteComments(true); setCanDeleteTickets(true); return }
       fetch(`/api/users/${d.user?.id}/settings`).then(r => r.json()).then(s => {
         setCanDeleteComments(s.permissions?.canDeleteComments === true)
+        setCanDeleteTickets(s.permissions?.canDeleteTickets === true)
       })
     })
   }, [loadTicket])
@@ -264,7 +266,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
           <span>/</span>
           <span className="text-gray-600 truncate">{ticket.title}</span>
         </div>
-        {user.role === 'ADMIN' && (
+        {canDeleteTickets && (
           <button
             onClick={() => setShowDeleteConfirm(true)}
             className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 border border-red-100 hover:border-red-300 rounded-lg px-3 py-1.5 transition-colors"
