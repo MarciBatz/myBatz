@@ -5,7 +5,7 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDate, displayName } from '@/lib/utils'
+import { formatRelativeTime, formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
 import RichTextEditor from '@/components/RichTextEditor'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
@@ -134,6 +134,8 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
     fetch('/api/calendar/today').then(r => r.json()).then(d => setTodayData(d))
   }, [])
+
+  const agentNameMap = buildUniqueDisplayNames(agents)
 
   const loadTickets = useCallback(async () => {
     setLoading(true)
@@ -277,7 +279,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           <select value={assigneeId} onChange={e => { setAssigneeId(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
             <option value="">Minden felelős</option>
-            {agents.map(a => <option key={a.id} value={a.id}>{displayName(a) || a.email}</option>)}
+            {agents.map(a => <option key={a.id} value={a.id}>{agentNameMap[a.id] || a.email}</option>)}
           </select>
           <button onClick={clearFilters} className="px-3 py-2 text-sm text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50">
             Szűrők törlése
@@ -341,7 +343,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                         {ticket.assignee ? (
                           <div className="flex items-center gap-2">
                             <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
-                            <span className="text-xs text-gray-600 truncate max-w-24">{displayName(ticket.assignee) || ticket.assignee.email}</span>
+                            <span className="text-xs text-gray-600 truncate max-w-24">{agentNameMap[ticket.assignee.id] || displayName(ticket.assignee) || ticket.assignee.email}</span>
                           </div>
                         ) : <span className="text-gray-300 text-xs">Nincs hozzárendelve</span>}
                       </td>
@@ -361,7 +363,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                             </button>
                             {ticket.assignee && ticket.assignee.id !== user.id && (
                               <button
-                                onClick={() => { const a = ticket.assignee!; setNudgeTarget({ ticketId: ticket.id, ticketTitle: ticket.title, assigneeName: displayName(a) || a.email }) }}
+                                onClick={() => { const a = ticket.assignee!; setNudgeTarget({ ticketId: ticket.id, ticketTitle: ticket.title, assigneeName: agentNameMap[a.id] || displayName(a) || a.email }) }}
                                 title="Emlékeztető küldése a felelősnek"
                                 className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -470,6 +472,7 @@ function CreateTicketModal({
   onClose: () => void
   onCreated: () => void
 }) {
+  const modalAgentNameMap = buildUniqueDisplayNames(agents)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('MEDIUM')
@@ -549,7 +552,7 @@ function CreateTicketModal({
             <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
               <option value="">Nincs hozzárendelve</option>
-              {agents.map(a => <option key={a.id} value={a.id}>{displayName(a) || a.email}</option>)}
+              {agents.map(a => <option key={a.id} value={a.id}>{modalAgentNameMap[a.id] || a.email}</option>)}
             </select>
           </div>
           <div>

@@ -12,6 +12,20 @@ export function fullDisplayName(user: { nickname?: string | null; lastName?: str
   return user.email?.split('@')[0] || ''
 }
 
+type NameableUser = { id: string; nickname?: string | null; firstName?: string | null; name?: string | null; email?: string }
+
+export function buildUniqueDisplayNames(users: NameableUser[]): Record<string, string> {
+  const preferred = new Map(users.map(u => [u.id, displayName(u)]))
+  const counts = new Map<string, number>()
+  preferred.forEach(n => counts.set(n, (counts.get(n) || 0) + 1))
+  const result: Record<string, string> = {}
+  users.forEach(u => {
+    const pref = preferred.get(u.id)!
+    result[u.id] = (counts.get(pref)! > 1) ? (u.name || u.email?.split('@')[0] || '') : pref
+  })
+  return result
+}
+
 export function formatRelativeTime(date: Date | string): string {
   const d = new Date(date)
   const now = new Date()

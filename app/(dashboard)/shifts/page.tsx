@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { buildUniqueDisplayNames } from '@/lib/utils'
 
 interface ShiftDay {
   id: string; date: string; timeStart: string | null; timeEnd: string | null
@@ -518,9 +519,7 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
     })
   }
 
-  function userName(u: { name: string | null; firstName: string | null; nickname: string | null; email: string }) {
-    return u.nickname || u.firstName || u.name || u.email
-  }
+  const userNameMap = useMemo(() => buildUniqueDisplayNames(allUsers), [allUsers])
 
   async function handleSave() {
     setError('')
@@ -592,7 +591,7 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
                         {allUsers.map(u => (
                           <label key={u.id} className="flex items-center gap-2 cursor-pointer py-0.5">
                             <input type="checkbox" checked={selectedUserIds.has(u.id)} onChange={() => toggleUser(u.id)} className="accent-teal-500" />
-                            <span className="text-sm text-gray-700">{userName(u)}</span>
+                            <span className="text-sm text-gray-700">{userNameMap[u.id] || u.email}</span>
                           </label>
                         ))}
                       </div>

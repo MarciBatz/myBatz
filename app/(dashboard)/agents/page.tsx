@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Avatar from '@/components/Avatar'
-import { formatDate, displayName } from '@/lib/utils'
+import { formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
 
 interface AgentUser {
   id: string; email: string; name: string | null; firstName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
@@ -224,6 +224,7 @@ export default function AgentsPage() {
   }
 
   const isAdmin = currentUser?.role === 'ADMIN'
+  const nameMap = buildUniqueDisplayNames(users)
 
   const statusLabel: Record<string, string> = {
     ACTIVE: 'Aktív',
@@ -293,7 +294,7 @@ export default function AgentsPage() {
                     <div className="flex items-center gap-3">
                       <Avatar name={u.name} firstName={u.firstName} nickname={u.nickname} email={u.email} avatarUrl={u.avatarUrl} size="md" online={isOnline(u.lastSeenAt)} />
                       <div>
-                        <p className="text-sm font-medium text-gray-900">{displayName(u) || '—'}</p>
+                        <p className="text-sm font-medium text-gray-900">{nameMap[u.id] || '—'}</p>
                         <p className="text-xs text-gray-400">{u.email}</p>
                       </div>
                     </div>
