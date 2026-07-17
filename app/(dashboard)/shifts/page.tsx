@@ -497,6 +497,31 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
+  // Notification state
+  const [sendNotify, setSendNotify] = useState(false)
+  const [notifyAll, setNotifyAll] = useState(true)
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string | null; firstName: string | null; nickname: string | null; email: string }[]>([])
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    fetch('/api/users').then(r => r.json()).then(d => {
+      const users = (d.users || []).filter((u: { id: string; status: string }) => u.id !== currentUserId && u.status === 'ACTIVE')
+      setAllUsers(users)
+    })
+  }, [currentUserId])
+
+  function toggleUser(id: string) {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id); else next.add(id)
+      return next
+    })
+  }
+
+  function userName(u: { name: string | null; firstName: string | null; nickname: string | null; email: string }) {
+    return u.nickname || u.firstName || u.name || u.email
+  }
+
   async function handleSave() {
     setError('')
     if (type === 'egyeb' && !title.trim()) { setError('A cím megadása kötelező'); return }
@@ -504,7 +529,8 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
     setSaving(true)
     let r: Response
     if (type === 'egyeb') {
-      r = await fetch('/api/calendar-events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), description: description.trim() || null, date, type: 'EGYEB' }) })
+      const notifyUserIds = sendNotify ? (notifyAll ? allUsers.map(u => u.id) : Array.from(selectedUserIds)) : []
+      r = await fetch('/api/calendar-events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), description: description.trim() || null, date, type: 'EGYEB', notifyUserIds }) })
     } else {
       r = await fetch('/api/vacations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate, note: note.trim() || null }) })
     }
@@ -538,6 +564,42 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Leírás (opcionális)</label>
                 <textarea value={description} onChange={e => setDescription(e.target.value)} rows={3} className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-teal-300 resize-none" />
+              </div>
+              {/* Notification section */}
+              <div className="border-t border-gray-100 pt-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
+                  <div
+                    className="relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0"
+                    style={{ background: sendNotify ? '#14B8A6' : '#e5e7eb' }}
+                    onClick={() => setSendNotify(v => !v)}
+                  >
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${sendNotify ? 'translate-x-4' : ''}`} />
+                  </div>
+                  <span className="text-sm text-gray-700">E-mail értesítő küldése</span>
+                </label>
+                {sendNotify && (
+                  <div className="pl-1 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={notifyAll} onChange={() => setNotifyAll(true)} className="accent-teal-500" />
+                      <span className="text-sm text-gray-700">Mindenki</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={!notifyAll} onChange={() => setNotifyAll(false)} className="accent-teal-500" />
+                      <span className="text-sm text-gray-700">Kiválasztott személyek</span>
+                    </label>
+                    {!notifyAll && (
+                      <div className="ml-5 mt-1 max-h-36 overflow-y-auto space-y-1 border border-gray-100 rounded-xl p-2">
+                        {allUsers.map(u => (
+                          <label key={u.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                            <input type="checkbox" checked={selectedUserIds.has(u.id)} onChange={() => toggleUser(u.id)} className="accent-teal-500" />
+                            <span className="text-sm text-gray-700">{userName(u)}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    <p className="text-xs text-gray-400 pl-0.5">Akinek ki van kapcsolva az "Egyéb naptáresemény" értesítő, az nem kap e-mailt.</p>
+                  </div>
+                )}
               </div>
             </>
           ) : (

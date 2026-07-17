@@ -333,6 +333,32 @@ export async function sendRoleChangedEmail(
   })
 }
 
+export async function sendCalendarEventNotificationEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  event: { title: string; date: Date; description?: string | null },
+  senderName: string
+): Promise<void> {
+  const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
+  const dateLabel = event.date.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+  await sendEmail({
+    to: recipient.email,
+    subject: `Naptár: ${event.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #14B8A6;">📅 Naptáresemény értesítő</h2>
+        <p>Szia ${greeting},</p>
+        <p><strong>${senderName}</strong> értesítőt küldött a következő eseményről:</p>
+        <div style="background:#f0fdfa;border-left:4px solid #14B8A6;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="font-size:18px;font-weight:bold;margin:0 0 8px;">${event.title}</p>
+          <p style="color:#666;margin:0;">📅 ${dateLabel}</p>
+          ${event.description ? `<p style="color:#444;margin:12px 0 0;">${event.description}</p>` : ''}
+        </div>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendOfficeWeekReminderEmail(
   user: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
   weekStart: Date
