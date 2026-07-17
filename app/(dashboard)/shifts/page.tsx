@@ -60,9 +60,7 @@ export default function ShiftsPage() {
   async function triggerSync() {
     setSyncing(true)
     setSyncResult(null)
-    const r = await fetch('/api/cron/sync-shifts', {
-      headers: { Authorization: `Bearer ${process.env.NEXT_PUBLIC_CRON_SECRET || ''}` },
-    })
+    const r = await fetch('/api/shifts/sync', { method: 'POST' })
     const d = await r.json()
     if (r.ok) {
       setSyncResult(`✓ Szinkronizálva: ${d.upserted} szűrőnap`)
