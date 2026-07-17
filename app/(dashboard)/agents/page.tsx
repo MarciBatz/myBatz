@@ -8,6 +8,23 @@ interface AgentUser {
   id: string; email: string; name: string | null; firstName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
 }
 
+interface UserSettings {
+  preferences: {
+    notifyTickets: boolean
+    notifyCalendarSzuronap: boolean
+    notifyCalendarHetes: boolean
+    notifyCalendarEgyeb: boolean
+    excludeFromOfficeRotation: boolean
+  } | null
+  permissions: {
+    canRegenerateOfficeSchedule: boolean
+    canManageEmailNotifications: boolean
+    canSendInvites: boolean
+    canDeleteTickets: boolean
+    canManageCategories: boolean
+  } | null
+}
+
 const ONLINE_THRESHOLD_MS = 2 * 60 * 1000 // 2 perc
 
 function isOnline(lastSeenAt: string | null): boolean {
@@ -51,6 +68,15 @@ export default function AgentsPage() {
   const [inviteLink, setInviteLink] = useState('')
   const [showLinkModal, setShowLinkModal] = useState(false)
   const [copied, setCopied] = useState(false)
+
+  // Settings modal
+  const [settingsTarget, setSettingsTarget] = useState<AgentUser | null>(null)
+  const [settings, setSettings] = useState<UserSettings | null>(null)
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [settingsSaving, setSettingsSaving] = useState(false)
+
+  // Regenerate schedule
+  const [regenerating, setRegenerating] = useState(false)
 
   useEffect(() => {
     loadUsers()
@@ -144,6 +170,49 @@ export default function AgentsPage() {
     loadUsers()
   }
 
+  async function openSettings(user: AgentUser) {
+    setSettingsTarget(user)
+    setSettings(null)
+    setSettingsLoading(true)
+    const res = await fetch(`/api/users/${user.id}/settings`)
+    const data = await res.json()
+    const defaults = {
+      notifyTickets: true, notifyCalendarSzuronap: true,
+      notifyCalendarHetes: true, notifyCalendarEgyeb: true,
+      excludeFromOfficeRotation: false,
+    }
+    const defaultPerms = {
+      canRegenerateOfficeSchedule: false, canManageEmailNotifications: false,
+      canSendInvites: false, canDeleteTickets: false, canManageCategories: false,
+    }
+    setSettings({
+      preferences: { ...defaults, ...(data.preferences || {}) },
+      permissions: { ...defaultPerms, ...(data.permissions || {}) },
+    })
+    setSettingsLoading(false)
+  }
+
+  async function saveSettings() {
+    if (!settingsTarget || !settings) return
+    setSettingsSaving(true)
+    await fetch(`/api/users/${settingsTarget.id}/settings`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ preferences: settings.preferences, permissions: settings.permissions }),
+    })
+    setSettingsSaving(false)
+    setSettingsTarget(null)
+  }
+
+  async function regenerateSchedule() {
+    setRegenerating(true)
+    const res = await fetch('/api/office-weeks/regenerate', { method: 'POST' })
+    setRegenerating(false)
+    if (!res.ok) {
+      alert('Nem sikerült újragenerálni a beosztást.')
+    }
+  }
+
   async function toggleStatus(userId: string, currentStatus: string) {
     const newStatus = currentStatus === 'ACTIVE' ? 'DISABLED' : 'ACTIVE'
     await fetch(`/api/users/${userId}`, {
@@ -178,16 +247,27 @@ export default function AgentsPage() {
           <h1 className="text-2xl font-bold text-gray-900">Munkatársak</h1>
           <p className="text-gray-500 text-sm mt-0.5">Csapattagok kezelése</p>
         </div>
-        {isAdmin && (
-          <button onClick={openInviteModal}
-            className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl"
-            style={{ background: '#6C5CE7' }}>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
-            </svg>
-            Meghívó küldése
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {isAdmin && (
+            <button onClick={regenerateSchedule} disabled={regenerating}
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 disabled:opacity-60">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              {regenerating ? 'Generálás...' : 'Irodai beosztás újragenerálása'}
+            </button>
+          )}
+          {isAdmin && (
+            <button onClick={openInviteModal}
+              className="flex items-center gap-2 px-4 py-2 text-white text-sm font-medium rounded-xl"
+              style={{ background: '#6C5CE7' }}>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z" />
+              </svg>
+              Meghívó küldése
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
@@ -203,6 +283,7 @@ export default function AgentsPage() {
                 <th className="px-4 py-3 font-medium">Utoljára aktív</th>
                 <th className="px-4 py-3 font-medium">Csatlakozott</th>
                 {isAdmin && <th className="px-4 py-3 font-medium">Műveletek</th>}
+                {isAdmin && <th className="px-4 py-3 font-medium"></th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
@@ -277,6 +358,17 @@ export default function AgentsPage() {
                           </button>
                         )}
                       </div>
+                    </td>
+                  )}
+                  {isAdmin && (
+                    <td className="px-4 py-4">
+                      <button onClick={() => openSettings(u)} title="Beállítások"
+                        className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                      </button>
                     </td>
                   )}
                 </tr>
@@ -422,6 +514,119 @@ export default function AgentsPage() {
           </div>
         )
       })()}
+
+      {/* Settings modal */}
+      {settingsTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <div>
+                <h2 className="text-lg font-semibold text-gray-900">Beállítások</h2>
+                <p className="text-sm text-gray-400">{settingsTarget.name || settingsTarget.email}</p>
+              </div>
+              <button onClick={() => setSettingsTarget(null)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {settingsLoading || !settings ? (
+              <div className="py-12 text-center text-gray-400 text-sm">Betöltés...</div>
+            ) : (
+              <div className="p-6 space-y-6">
+                {/* Email notifications */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">E-mail értesítések</h3>
+                  <div className="space-y-2.5">
+                    {([
+                      { key: 'notifyTickets', label: 'Ticketek' },
+                      { key: 'notifyCalendarSzuronap', label: 'Szűrőnapok' },
+                      { key: 'notifyCalendarHetes', label: 'Irodai hetes' },
+                      { key: 'notifyCalendarEgyeb', label: 'Egyéb naptáresemény' },
+                    ] as const).map(({ key, label }) => (
+                      <label key={key} className="flex items-center justify-between cursor-pointer">
+                        <span className="text-sm text-gray-600">{label}</span>
+                        <div
+                          className="relative w-10 h-5 rounded-full transition-colors cursor-pointer"
+                          style={{ background: settings.preferences?.[key] ? '#6C5CE7' : '#e5e7eb' }}
+                          onClick={() => setSettings(s => s ? {
+                            ...s,
+                            preferences: { ...s.preferences!, [key]: !s.preferences?.[key] }
+                          } : s)}
+                        >
+                          <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.preferences?.[key] ? 'translate-x-5' : ''}`} />
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Office rotation */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-3">Irodai hetes rotáció</h3>
+                  <label className="flex items-center justify-between cursor-pointer">
+                    <span className="text-sm text-gray-600">Kizárás a rotációból</span>
+                    <div
+                      className="relative w-10 h-5 rounded-full transition-colors cursor-pointer"
+                      style={{ background: settings.preferences?.excludeFromOfficeRotation ? '#ef4444' : '#e5e7eb' }}
+                      onClick={() => setSettings(s => s ? {
+                        ...s,
+                        preferences: { ...s.preferences!, excludeFromOfficeRotation: !s.preferences?.excludeFromOfficeRotation }
+                      } : s)}
+                    >
+                      <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.preferences?.excludeFromOfficeRotation ? 'translate-x-5' : ''}`} />
+                    </div>
+                  </label>
+                </div>
+
+                {/* Permissions (admin only) */}
+                {settingsTarget.role !== 'ADMIN' && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-700 mb-3">Jogosultságok</h3>
+                    <div className="space-y-2.5">
+                      {([
+                        { key: 'canRegenerateOfficeSchedule', label: 'Irodai hetes beosztás újragenerálása' },
+                        { key: 'canManageEmailNotifications', label: 'E-mail értesítési beállítások módosítása' },
+                        { key: 'canSendInvites', label: 'Meghívó küldése' },
+                        { key: 'canDeleteTickets', label: 'Ticketek törlése' },
+                        { key: 'canManageCategories', label: 'Kategóriák kezelése' },
+                      ] as const).map(({ key, label }) => (
+                        <label key={key} className="flex items-center justify-between cursor-pointer">
+                          <span className="text-sm text-gray-600">{label}</span>
+                          <div
+                            className="relative w-10 h-5 rounded-full transition-colors cursor-pointer"
+                            style={{ background: settings.permissions?.[key] ? '#6C5CE7' : '#e5e7eb' }}
+                            onClick={() => setSettings(s => s ? {
+                              ...s,
+                              permissions: { ...s.permissions!, [key]: !s.permissions?.[key] }
+                            } : s)}
+                          >
+                            <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${settings.permissions?.[key] ? 'translate-x-5' : ''}`} />
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {settingsTarget.role === 'ADMIN' && (
+                  <p className="text-xs text-gray-400 italic">Az adminisztrátorok automatikusan rendelkeznek minden jogosultsággal.</p>
+                )}
+
+                <div className="flex justify-end gap-3 pt-2">
+                  <button onClick={() => setSettingsTarget(null)}
+                    className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
+                  <button onClick={saveSettings} disabled={settingsSaving}
+                    className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                    style={{ background: '#6C5CE7' }}>
+                    {settingsSaving ? 'Mentés...' : 'Mentés'}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Link copy modal */}
       {showLinkModal && (

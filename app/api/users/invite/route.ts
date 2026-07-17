@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireAdmin, unauthorizedResponse, forbiddenResponse, generateToken, hashToken } from '@/lib/auth'
+import { getSessionFromRequest, unauthorizedResponse, forbiddenResponse, generateToken, hashToken } from '@/lib/auth'
 import { sendInviteEmail } from '@/lib/email'
 import { writeAuditLog } from '@/lib/audit'
+import { hasPermission } from '@/lib/permissions'
 
 const schema = z.object({
   email: z.string().email(),
@@ -14,7 +15,11 @@ const schema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
-    const adminUser = await requireAdmin(request)
+    const session = await getSessionFromRequest(request)
+    if (!session) return unauthorizedResponse()
+    const canInvite = await hasPermission(session.id, session.role, 'canSendInvites')
+    if (!canInvite) return forbiddenResponse()
+    const adminUser = session as { id: string; name?: string | null; nickname?: string | null; firstName?: string | null; email: string }
     const body = await request.json()
     const { email, name, role, sendEmail: shouldSendEmail } = schema.parse(body)
 

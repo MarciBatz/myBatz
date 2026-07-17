@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireSession, requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { requireSession, getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { hasPermission } from '@/lib/permissions'
 
 const schema = z.object({ name: z.string().min(1).max(100) })
 
@@ -18,7 +19,10 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    await requireAdmin(request)
+    const session = await getSessionFromRequest(request)
+    if (!session) return unauthorizedResponse()
+    const canManage = await hasPermission(session.id, session.role, 'canManageCategories')
+    if (!canManage) return forbiddenResponse()
     const body = await request.json()
     const { name } = schema.parse(body)
     const category = await prisma.category.create({ data: { name } })

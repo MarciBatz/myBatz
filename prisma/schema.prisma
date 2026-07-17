@@ -57,6 +57,8 @@ model User {
   calendarEvents  CalendarEvent[]
   officeWeeks     OfficeWeek[]
   vacations       Vacation[]
+  preferences     UserPreferences?
+  permissions     UserPermissions?
 }
 
 model Invite {
@@ -184,6 +186,28 @@ model OfficeWeek {
   updatedAt      DateTime @updatedAt
 
   @@unique([weekStart])
+}
+
+model UserPreferences {
+  id                        String  @id @default(cuid())
+  userId                    String  @unique
+  user                      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notifyTickets             Boolean @default(true)
+  notifyCalendarSzuronap    Boolean @default(true)
+  notifyCalendarHetes       Boolean @default(true)
+  notifyCalendarEgyeb       Boolean @default(true)
+  excludeFromOfficeRotation Boolean @default(false)
+}
+
+model UserPermissions {
+  id                          String  @id @default(cuid())
+  userId                      String  @unique
+  user                        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  canRegenerateOfficeSchedule Boolean @default(false)
+  canManageEmailNotifications Boolean @default(false)
+  canSendInvites              Boolean @default(false)
+  canDeleteTickets            Boolean @default(false)
+  canManageCategories         Boolean @default(false)
 }
 
 model Vacation {

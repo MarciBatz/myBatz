@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireSession, requireReadWrite, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { requireSession, requireReadWrite, getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { sendTicketUpdateEmail } from '@/lib/email'
+import { hasPermission } from '@/lib/permissions'
 
 const updateSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -154,8 +155,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const user = await requireSession(request)
-    if (user.role !== 'ADMIN') return forbiddenResponse()
+    const session = await getSessionFromRequest(request)
+    if (!session) return unauthorizedResponse()
+    const canDelete = await hasPermission(session.id, session.role, 'canDeleteTickets')
+    if (!canDelete) return forbiddenResponse()
+    const user = session
 
     const { id } = await params
     const existing = await prisma.ticket.findUnique({ where: { id } })
