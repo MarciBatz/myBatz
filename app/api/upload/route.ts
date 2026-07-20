@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     console.error('Upload error:', error)
-    return NextResponse.json({ error: 'A fájl feltöltése nem sikerült' }, { status: 500 })
+    const detail = error instanceof Error ? error.message : String(error)
+    return NextResponse.json({ error: `A fájl feltöltése nem sikerült: ${detail}` }, { status: 500 })
   }
 }
