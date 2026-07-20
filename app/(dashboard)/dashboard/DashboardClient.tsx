@@ -7,60 +7,7 @@ import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024
-
-function FileUploader({ onUploaded }: { onUploaded: (files: { fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [pending, setPending] = useState<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]>([])
-  const [error, setError] = useState('')
-
-  async function handleFiles(files: FileList) {
-    setError('')
-    const results: { fileUrl: string; fileName: string; fileSize: number; mimeType: string }[] = []
-    setUploading(true)
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_FILE_SIZE) { setError(`"${file.name}" túl nagy (max 50 MB)`); continue }
-      const fd = new FormData(); fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (res.ok) { const d = await res.json(); results.push({ fileUrl: d.url, fileName: d.fileName, fileSize: d.size, mimeType: file.type }) }
-    }
-    setUploading(false)
-    if (results.length) { const updated = [...pending, ...results]; setPending(updated); onUploaded(updated) }
-  }
-
-  function remove(idx: number) {
-    const updated = pending.filter((_, i) => i !== idx)
-    setPending(updated); onUploaded(updated)
-  }
-
-  return (
-    <div>
-      {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
-      {pending.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {pending.map((f, i) => (
-            <div key={i} className="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1">
-              <span className="text-xs text-gray-600 max-w-32 truncate">{f.fileName}</span>
-              <button type="button" onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 ml-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <button type="button" onClick={() => inputRef.current?.click()} disabled={uploading}
-        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-indigo-300 transition-colors disabled:opacity-50">
-        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-        </svg>
-        {uploading ? 'Feltöltés...' : 'Fájl csatolása (max 50 MB)'}
-      </button>
-      <input ref={inputRef} type="file" multiple className="hidden" onChange={e => e.target.files && handleFiles(e.target.files)} />
-    </div>
-  )
-}
+import FileUpload, { type UploadedFile } from '@/components/FileUpload'
 
 interface TodayData {
   shifts: { id: string; title: string; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
@@ -536,7 +483,7 @@ function CreateTicketModal({
   const [priority, setPriority] = useState('MEDIUM')
   const [categoryId, setCategoryId] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
-  const [attachments, setAttachments] = useState<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]>([])
+  const [attachments, setAttachments] = useState<UploadedFile[]>([])
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -691,7 +638,7 @@ function CreateTicketModal({
             </select>
           </div>
           <div>
-            <FileUploader onUploaded={setAttachments} />
+            <FileUpload value={attachments} onChange={setAttachments} />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>

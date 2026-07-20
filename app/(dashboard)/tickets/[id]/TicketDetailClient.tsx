@@ -8,6 +8,8 @@ import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDateTime, displayName } from '@/lib/utils'
+import FileUpload from '@/components/FileUpload'
+import AttachmentList from '@/components/AttachmentList'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
 interface Attachment { id: string; fileUrl: string; fileName: string; fileSize: number; mimeType?: string | null }
@@ -26,127 +28,6 @@ interface Ticket {
   comments: Comment[]
   activities: Activity[]
   attachments: Attachment[]
-}
-
-const MAX_FILE_SIZE = 50 * 1024 * 1024
-
-function isImage(mimeType?: string | null, fileName?: string) {
-  if (mimeType?.startsWith('image/')) return true
-  if (!fileName) return false
-  return /\.(jpg|jpeg|png|gif|webp|svg)$/i.test(fileName)
-}
-
-function FileList({ attachments }: { attachments: Attachment[] }) {
-  if (!attachments.length) return null
-  return (
-    <div className="flex flex-wrap gap-2 mt-3">
-      {attachments.map(a => (
-        <a key={a.id} href={a.fileUrl} target="_blank" rel="noreferrer"
-          className="group flex items-center gap-1.5 border border-gray-100 rounded-lg overflow-hidden hover:border-indigo-200 transition-colors bg-gray-50">
-          {isImage(a.mimeType, a.fileName) ? (
-            <img src={a.fileUrl} alt={a.fileName} className="w-10 h-10 object-cover flex-shrink-0" />
-          ) : (
-            <div className="w-10 h-10 flex items-center justify-center bg-indigo-50 flex-shrink-0">
-              <svg className="w-5 h-5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-              </svg>
-            </div>
-          )}
-          <span className="text-xs text-gray-600 pr-3 group-hover:text-indigo-600 max-w-32 truncate">{a.fileName}</span>
-        </a>
-      ))}
-    </div>
-  )
-}
-
-function FileUploader({ onUploaded }: { onUploaded: (files: { fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]) => void }) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [uploading, setUploading] = useState(false)
-  const [pending, setPending] = useState<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]>([])
-  const [error, setError] = useState('')
-
-  async function handleFiles(files: FileList) {
-    setError('')
-    const results: { fileUrl: string; fileName: string; fileSize: number; mimeType: string }[] = []
-    setUploading(true)
-    for (const file of Array.from(files)) {
-      if (file.size > MAX_FILE_SIZE) {
-        setError(`"${file.name}" túl nagy (max 50 MB)`)
-        continue
-      }
-      const fd = new FormData()
-      fd.append('file', file)
-      const res = await fetch('/api/upload', { method: 'POST', body: fd })
-      if (res.ok) {
-        const d = await res.json()
-        results.push({ fileUrl: d.url, fileName: d.fileName, fileSize: d.size, mimeType: file.type })
-      }
-    }
-    setUploading(false)
-    if (results.length) {
-      const updated = [...pending, ...results]
-      setPending(updated)
-      onUploaded(updated)
-    }
-  }
-
-  function remove(idx: number) {
-    const updated = pending.filter((_, i) => i !== idx)
-    setPending(updated)
-    onUploaded(updated)
-  }
-
-  return (
-    <div>
-      {error && <p className="text-xs text-red-500 mb-1">{error}</p>}
-      {pending.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-2">
-          {pending.map((f, i) => (
-            <div key={i} className="flex items-center gap-1 bg-gray-100 rounded-lg px-2 py-1">
-              {isImage(f.mimeType, f.fileName) ? (
-                <img src={f.fileUrl} alt={f.fileName} className="w-6 h-6 object-cover rounded" />
-              ) : (
-                <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-              )}
-              <span className="text-xs text-gray-600 max-w-24 truncate">{f.fileName}</span>
-              <button type="button" onClick={() => remove(i)} className="text-gray-400 hover:text-red-500 ml-1">
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-          ))}
-        </div>
-      )}
-      <button
-        type="button"
-        onClick={() => inputRef.current?.click()}
-        disabled={uploading}
-        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 border border-gray-200 rounded-lg px-3 py-1.5 hover:border-indigo-300 transition-colors disabled:opacity-50"
-      >
-        {uploading ? (
-          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-          </svg>
-        ) : (
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
-          </svg>
-        )}
-        {uploading ? 'Feltöltés...' : 'Fájl csatolása (max 50 MB)'}
-      </button>
-      <input
-        ref={inputRef}
-        type="file"
-        multiple
-        className="hidden"
-        onChange={e => e.target.files && handleFiles(e.target.files)}
-      />
-    </div>
-  )
 }
 
 export default function TicketDetailClient({ ticketId, user }: { ticketId: string; user: User }) {
@@ -302,7 +183,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             {ticket.attachments.length > 0 && (
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <p className="text-xs font-medium text-gray-500 mb-1">Csatolmányok</p>
-                <FileList attachments={ticket.attachments} />
+                <AttachmentList attachments={ticket.attachments} />
               </div>
             )}
           </div>
@@ -330,7 +211,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   <div className="prose text-sm text-gray-700"
                     dangerouslySetInnerHTML={{ __html: c.body.replace(/@\[([^\]]+)\]\([^)]+\)/g, (_, name) => `<strong class="text-indigo-600">@${name}</strong>`) }} />
                 ) : null}
-                {c.attachments.length > 0 && <FileList attachments={c.attachments} />}
+                {c.attachments.length > 0 && <AttachmentList attachments={c.attachments} />}
               </div>
             ))}
           </div>
@@ -419,7 +300,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
-                  <FileUploader onUploaded={setCommentAttachments} />
+                  <FileUpload value={commentAttachments} onChange={setCommentAttachments} />
                   <button type="submit" disabled={submittingComment || (!commentText.trim() && commentAttachments.length === 0)}
                     className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60 flex-shrink-0"
                     style={{ background: '#6C5CE7' }}>

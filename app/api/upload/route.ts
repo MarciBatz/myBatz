@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireSession, unauthorizedResponse } from '@/lib/auth'
 
-const MAX_SIZE = 50 * 1024 * 1024 // 50 MB
+const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     if (!file) return NextResponse.json({ error: 'Nincs fájl megadva' }, { status: 400 })
 
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'A fájl mérete nem lehet nagyobb 50 MB-nál' }, { status: 400 })
+      return NextResponse.json({ error: 'A fájl mérete nem lehet nagyobb 5 MB-nál' }, { status: 400 })
     }
 
     // Vercel Blob storage (production)
@@ -24,7 +24,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ url: blob.url, fileName: file.name, size: file.size })
     }
 
-    // Local filesystem fallback (development)
+    // On Vercel without a configured Blob store the filesystem is read-only —
+    // fail loudly instead of silently so the misconfiguration is obvious.
+    if (process.env.VERCEL) {
+      console.error('Upload failed: BLOB_READ_WRITE_TOKEN is not configured')
+      return NextResponse.json({ error: 'A fájltárolás nincs beállítva a szerveren' }, { status: 500 })
+    }
+
+    // Local filesystem fallback (development only)
     const { writeFile, mkdir } = await import('fs/promises')
     const path = await import('path')
     const bytes = await file.arrayBuffer()
@@ -38,6 +45,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     console.error('Upload error:', error)
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({ error: 'A fájl feltöltése nem sikerült' }, { status: 500 })
   }
 }
