@@ -26,6 +26,7 @@ export function proxy(request: NextRequest) {
     '/api/auth/forgot-password',
     '/api/auth/reset-password',
     '/api/invite',
+    '/api/cron/',
   ]
 
   const isPublicApiRoute = publicAuthPaths.some((p) => pathname.startsWith(p))
