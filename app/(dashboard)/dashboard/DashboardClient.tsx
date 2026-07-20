@@ -169,9 +169,9 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">
-            {ticketsOnly ? 'Ticketek' : `Szia, ${displayName(user)}!`}
+            {ticketsOnly ? 'Feladatok' : `Szia, ${displayName(user)}!`}
           </h1>
-          <p className="text-gray-500 text-sm mt-0.5">{ticketsOnly ? 'Az összes hibajegy áttekintése' : 'Íme, mi történik ma'}</p>
+          <p className="text-gray-500 text-sm mt-0.5">{ticketsOnly ? 'Az összes feladat áttekintése' : 'Íme, mi történik ma'}</p>
         </div>
         {user.role !== 'READER' && (
           <button
@@ -182,7 +182,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
             </svg>
-            Új ticket
+            Új feladat
           </button>
         )}
       </div>
@@ -300,7 +300,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
       {/* Ticket list */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-3 border-b border-gray-100 flex items-center justify-between">
-          <span className="text-sm font-medium text-gray-700">{total} ticket</span>
+          <span className="text-sm font-medium text-gray-700">{total} feladat</span>
         </div>
 
         {loading ? (
@@ -314,7 +314,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
               <table className="w-full">
                 <thead>
                   <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-50">
-                    <th className="px-5 py-3 font-medium">Ticket</th>
+                    <th className="px-5 py-3 font-medium">Feladat</th>
                     <th className="px-4 py-3 font-medium">Kategória</th>
                     <th className="px-4 py-3 font-medium">Státusz</th>
                     <th className="px-4 py-3 font-medium">Prioritás</th>
@@ -505,7 +505,7 @@ function CreateTicketModal({
         body: JSON.stringify({ title, description, priority, categoryId: categoryId || null, assigneeId: assigneeId || null, attachments }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Failed to create ticket'); return }
+      if (!res.ok) { setError(data.error || 'Failed to create feladat'); return }
       onCreated()
     } catch {
       setError('An unexpected error occurred')
@@ -518,7 +518,7 @@ function CreateTicketModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
       <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
-          <h2 className="text-lg font-semibold text-gray-900">Új ticket</h2>
+          <h2 className="text-lg font-semibold text-gray-900">Új feladat</h2>
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -571,7 +571,7 @@ function CreateTicketModal({
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
             <button type="submit" disabled={loading} className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60" style={{ background: '#6C5CE7' }}>
-              {loading ? 'Létrehozás...' : 'Ticket létrehozása'}
+              {loading ? 'Létrehozás...' : 'Feladat létrehozása'}
             </button>
           </div>
         </form>

@@ -12,7 +12,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   canRegenerateOfficeSchedule: 'Irodai hetes beosztás újragenerálása',
   canManageEmailNotifications: 'E-mail értesítési beállítások módosítása',
   canSendInvites: 'Meghívó küldése',
-  canDeleteTickets: 'Ticketek törlése',
+  canDeleteTickets: 'Feladatok törlése',
   canDeleteComments: 'Hozzászólások törlése',
   canManageCategories: 'Kategóriák kezelése',
 }

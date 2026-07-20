@@ -255,7 +255,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   }
 
   if (loading) return <div className="p-6 text-gray-400">Betöltés...</div>
-  if (!ticket) return <div className="p-6 text-gray-600">A ticket nem található</div>
+  if (!ticket) return <div className="p-6 text-gray-600">A feladat nem található</div>
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -274,7 +274,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
             </svg>
-            Ticket törlése
+            Feladat törlése
           </button>
         )}
       </div>
@@ -517,12 +517,12 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 </svg>
               </div>
               <div>
-                <h2 className="text-lg font-semibold text-gray-900">Ticket törlése</h2>
+                <h2 className="text-lg font-semibold text-gray-900">Feladat törlése</h2>
                 <p className="text-sm text-gray-500">Ez a művelet nem visszavonható.</p>
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Biztosan törlöd a <strong>„{ticket.title}"</strong> ticketet? Az összes hozzászólás, csatolmány és tevékenység is törlődik.
+              Biztosan törlöd a <strong>„{ticket.title}"</strong> feladatot? Az összes hozzászólás, csatolmány és tevékenység is törlődik.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setShowDeleteConfirm(false)}

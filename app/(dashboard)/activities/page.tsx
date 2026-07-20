@@ -12,7 +12,7 @@ interface Activity {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  created: 'létrehozta a ticketet:',
+  created: 'létrehozta a feladatot:',
   comment_added: 'megjegyzést fűzött ehhez:',
   internal_note_added: 'belső megjegyzést fűzött ehhez:',
   status_changed: 'megváltoztatta a státuszt:',

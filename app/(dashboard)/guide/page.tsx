@@ -9,7 +9,7 @@ export default function GuidePage() {
         <div className="flex items-center gap-3 mb-4">
           <Link href="/dashboard" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Vissza a myBatz Task felületre
+            Vissza a myBatz felületre
           </Link>
         </div>
         <div className="flex items-center gap-3">
@@ -20,7 +20,7 @@ export default function GuidePage() {
           </div>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Funkciók és útmutató</h1>
-            <p className="text-gray-500 text-sm">myBatz Task — Összefoglaló kézikönyv</p>
+            <p className="text-gray-500 text-sm">myBatz — Összefoglaló kézikönyv</p>
           </div>
         </div>
       </div>
@@ -36,15 +36,15 @@ export default function GuidePage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Adminisztrátor</p>
-              <p className="text-sm text-gray-600">Teljes hozzáférés: felhasználók kezelése, kategóriák létrehozása, minden ticket megtekintése és módosítása, összes beállítás elérése, changelog kezelése.</p>
+              <p className="text-sm text-gray-600">Teljes hozzáférés: felhasználók kezelése, kategóriák létrehozása, minden feladat megtekintése és módosítása, összes beállítás elérése, changelog kezelése.</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Felhasználó (Agent)</p>
-              <p className="text-sm text-gray-600">Ticketek létrehozása és kezelése, megjegyzések fűzése, felelős jelölése, sablon válaszok szerkesztése. Egyéni jogosultságokkal bővíthető.</p>
+              <p className="text-sm text-gray-600">Feladatok létrehozása és kezelése, megjegyzések fűzése, felelős jelölése, sablon válaszok szerkesztése. Egyéni jogosultságokkal bővíthető.</p>
             </div>
             <div className="rounded-lg border border-gray-100 bg-gray-50 p-4">
               <p className="font-semibold text-gray-900 mb-1">Olvasó (Reader)</p>
-              <p className="text-sm text-gray-600">Kizárólag megtekintési jog: a ticketeket látja, de nem módosíthatja azokat.</p>
+              <p className="text-sm text-gray-600">Kizárólag megtekintési jog: a feladatokat látja, de nem módosíthatja azokat.</p>
             </div>
           </div>
           <div className="bg-indigo-50 rounded-lg px-4 py-3 text-sm text-indigo-800">
@@ -54,8 +54,8 @@ export default function GuidePage() {
                 'Meghívó küldése — új munkatárs meghívása e-mailben',
                 'Irodai beosztás újragenerálása — jövőbeli hetek újraosztása',
                 'Felhasználói beállítások kezelése — mások preferenciáinak és jogosultságainak szerkesztése',
-                'Ticketek törlése — ticket végleges eltávolítása',
-                'Hozzászólások törlése — megjegyzések törlése ticketeken',
+                'Feladatok törlése — feladat végleges eltávolítása',
+                'Hozzászólások törlése — megjegyzések törlése feladatokon',
                 'Kategóriák kezelése — kategóriák létrehozása és törlése',
               ].map((item, i) => (
                 <li key={i} className="flex items-start gap-2"><span className="mt-0.5">•</span><span>{item}</span></li>
@@ -68,13 +68,13 @@ export default function GuidePage() {
         <section className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
           <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
             <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>2</span>
-            Ticketek kezelése
+            Feladatok kezelése
           </h2>
           <div className="space-y-3 text-sm text-gray-700">
-            <p>A ticket a rendszer alapegysége: egy feladat, kérés vagy probléma nyomon követésére szolgál.</p>
+            <p>A feladat a rendszer alapegysége: egy tennivaló, kérés vagy probléma nyomon követésére szolgál.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
               <div>
-                <p className="font-medium text-gray-900 mb-2">Ticket létrehozásakor megadható:</p>
+                <p className="font-medium text-gray-900 mb-2">Feladat létrehozásakor megadható:</p>
                 <ul className="space-y-1 text-gray-600">
                   {['Cím és részletes leírás (szövegformázással)', 'Kategória és prioritás (Alacsony / Közepes / Magas / Kritikus)', 'Felelős személy hozzárendelése', 'Fájlmelléklet csatolása'].map((item, i) => (
                     <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
@@ -89,8 +89,8 @@ export default function GuidePage() {
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-orange-50 text-orange-700 mr-1">Várakozik</span>
                   <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600">Lezárt</span>
                 </div>
-                <p className="font-medium text-gray-900 mb-1 mt-4">Lezárt ticketek megjelenítése:</p>
-                <p className="text-gray-600 text-sm">A vezérlőpulton egy gombbal be- és kikapcsolható, hogy látszódjanak-e a lezárt ticketek. Alapból látszódnak.</p>
+                <p className="font-medium text-gray-900 mb-1 mt-4">Lezárt feladatok megjelenítése:</p>
+                <p className="text-gray-600 text-sm">A vezérlőpulton egy gombbal be- és kikapcsolható, hogy látszódjanak-e a lezárt feladatok. Alapból látszódnak.</p>
               </div>
             </div>
           </div>
@@ -103,7 +103,7 @@ export default function GuidePage() {
             Megjegyzések és szövegformázás
           </h2>
           <div className="space-y-3 text-sm text-gray-700">
-            <p>Minden ticket alatt megjegyzések fűzhetők, amelyek visszajelzést, státuszfrissítést vagy belső jegyzetet tartalmaznak.</p>
+            <p>Minden feladat alatt megjegyzések fűzhetők, amelyek visszajelzést, státuszfrissítést vagy belső jegyzetet tartalmaznak.</p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <p className="font-medium text-gray-900 mb-2">Szövegformázási lehetőségek:</p>
@@ -136,18 +136,18 @@ export default function GuidePage() {
             <div>
               <p className="font-medium text-gray-900 mb-2">E-mail értesítések küldési esetei:</p>
               <ul className="space-y-1 text-gray-600">
-                {['Új ticket létrehozásakor a felelősnek', 'Megjegyzés hozzáadásakor az érintetteknek', 'Státusz- vagy prioritásváltáskor', '@megemlítéskor az érintett felhasználónak', 'SLA átlépésekor emlékeztető a felelősnek', 'Irodai hetes értesítő (hétfőnként automatikusan)', 'Naptár egyéb esemény — ha a létrehozó értesítőt küld'].map((item, i) => (
+                {['Új feladat létrehozásakor a felelősnek', 'Megjegyzés hozzáadásakor az érintetteknek', 'Státusz- vagy prioritásváltáskor', '@megemlítéskor az érintett felhasználónak', 'SLA átlépésekor emlékeztető a felelősnek', 'Irodai hetes értesítő (hétfőnként automatikusan)', 'Naptár egyéb esemény — ha a létrehozó értesítőt küld'].map((item, i) => (
                   <li key={i} className="flex items-start gap-2"><span className="text-indigo-500 mt-0.5">•</span>{item}</li>
                 ))}
               </ul>
             </div>
             <div>
               <p className="font-medium text-gray-900 mb-2">Harangozó (Nudge) funkció:</p>
-              <p className="text-gray-600 mb-3">Ha egy ticket felelőse nem reagál, a csengő ikonra kattintva emlékeztetőt küldhetsz neki e-mailben.</p>
+              <p className="text-gray-600 mb-3">Ha egy feladat felelőse nem reagál, a csengő ikonra kattintva emlékeztetőt küldhetsz neki e-mailben.</p>
               <p className="font-medium text-gray-900 mb-2">SLA-figyelés (48 óra):</p>
               <p className="text-gray-600 mb-3">Ha a felelős 48 órán belül nem reagál, a rendszer automatikusan emlékeztető e-mailt küld.</p>
               <p className="font-medium text-gray-900 mb-2">Egyéni értesítési preferenciák:</p>
-              <p className="text-gray-600">Mindenki a saját profiljában kapcsolhatja ki/be az egyes értesítési típusokat (ticket, megemlítés, irodai hetes, naptár egyéb esemény).</p>
+              <p className="text-gray-600">Mindenki a saját profiljában kapcsolhatja ki/be az egyes értesítési típusokat (feladat, megemlítés, irodai hetes, naptár egyéb esemény).</p>
             </div>
           </div>
         </section>
@@ -243,9 +243,9 @@ export default function GuidePage() {
             </div>
             <div>
               <p className="font-medium text-gray-900 mb-2">E-mail értesítési preferenciák:</p>
-              <p className="text-gray-600 mb-3">Mindenki a saját beállításaiban kapcsolhatja ki/be az egyes értesítési típusokat: ticket értesítések, @megemlítés, irodai hetes, naptár egyéb esemény.</p>
+              <p className="text-gray-600 mb-3">Mindenki a saját beállításaiban kapcsolhatja ki/be az egyes értesítési típusokat: feladat értesítések, @megemlítés, irodai hetes, naptár egyéb esemény.</p>
               <p className="font-medium text-gray-900 mb-2">Kategóriák:</p>
-              <p className="text-gray-600">Az adminisztrátor és az arra jogosult felhasználó létrehozhatja és törölheti a ticket-kategóriákat.</p>
+              <p className="text-gray-600">Az adminisztrátor és az arra jogosult felhasználó létrehozhatja és törölheti a feladat-kategóriákat.</p>
             </div>
           </div>
         </section>
@@ -256,13 +256,13 @@ export default function GuidePage() {
             <span className="w-7 h-7 rounded-lg flex items-center justify-center text-white text-xs font-bold" style={{ background: '#6C5CE7' }}>9</span>
             Tevékenységnapló
           </h2>
-          <p className="text-sm text-gray-700">A <strong>Tevékenységek</strong> menüpont alatt megtekinthető az összes esemény: ki, mikor, mit változtatott. Szűrhető felhasználó szerint. Minden ticketen belül is megjelenik a saját tevékenységtörténet: státuszváltások, megjegyzések, emlékeztetők, felelős-változások.</p>
+          <p className="text-sm text-gray-700">A <strong>Tevékenységek</strong> menüpont alatt megtekinthető az összes esemény: ki, mikor, mit változtatott. Szűrhető felhasználó szerint. Minden feladaton belül is megjelenik a saját tevékenységtörténet: státuszváltások, megjegyzések, emlékeztetők, felelős-változások.</p>
         </section>
 
         <div className="text-center py-6">
           <Link href="/dashboard" className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-medium text-white transition-colors" style={{ background: '#6C5CE7' }}>
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" /></svg>
-            Vissza a myBatz Task felületre
+            Vissza a myBatz felületre
           </Link>
         </div>
       </div>

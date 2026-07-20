@@ -50,18 +50,18 @@ export async function sendInviteEmail(
 
   await sendEmail({
     to: email,
-    subject: 'Meghívtak a myBatz Task rendszerbe',
+    subject: 'Meghívtak a myBatz rendszerbe',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Szia, ${inviteeName}!</h2>
-        <p><strong>${inviterName}</strong> meghívott a myBatz Task belső feladatkezelő rendszerbe.</p>
+        <p><strong>${inviterName}</strong> meghívott a myBatz belső feladatkezelő rendszerbe.</p>
         <p>Kattints az alábbi gombra a meghívó elfogadásához és a fiókod beállításához:</p>
         <a href="${inviteUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Meghívó elfogadása
         </a>
         <p style="color:#666;font-size:14px;">A meghívó link 48 óráig érvényes.</p>
         <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${inviteUrl}</p>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -73,18 +73,18 @@ export async function sendPasswordResetEmail(email: string, token: string): Prom
 
   await sendEmail({
     to: email,
-    subject: 'myBatz Task – Jelszó visszaállítása',
+    subject: 'myBatz – Jelszó visszaállítása',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Jelszó visszaállítása</h2>
-        <p>Jelszó-visszaállítást kértek a myBatz Task fiókodhoz.</p>
+        <p>Jelszó-visszaállítást kértek a myBatz fiókodhoz.</p>
         <p>Kattints az alábbi gombra az új jelszó beállításához:</p>
         <a href="${resetUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;margin:16px 0;">
           Jelszó visszaállítása
         </a>
         <p style="color:#666;font-size:14px;">A link 1 óráig érvényes. Ha nem te kérted, hagyd figyelmen kívül ezt az emailt.</p>
         <p style="color:#666;font-size:12px;">Ha a gomb nem működik, másold be ezt a linket: ${resetUrl}</p>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -112,21 +112,21 @@ export async function sendNewTicketEmail(
     const greeting = user.nickname || user.name || 'Kedves Felhasználó'
     await sendEmail({
       to: user.email,
-      subject: `Új ticket: ${ticket.title}`,
+      subject: `Új feladat: ${ticket.title}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6C5CE7;">Új ticket érkezett</h2>
+          <h2 style="color: #6C5CE7;">Új feladat érkezett</h2>
           <p>Szia ${greeting},</p>
-          <p><strong>${createdBy}</strong> új ticketet hozott létre:</p>
+          <p><strong>${createdBy}</strong> új feladatot hozott létre:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
             <strong style="font-size:16px;">${ticket.title}</strong>
             <p style="color:#666;margin:8px 0;">${ticket.description.slice(0, 200)}${ticket.description.length > 200 ? '...' : ''}</p>
             <span style="background:#6C5CE7;color:#fff;padding:2px 10px;border-radius:4px;font-size:12px;">Prioritás: ${priorityLabel}</span>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            Ticket megtekintése
+            Feladat megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
         </div>
       `,
     })
@@ -156,15 +156,15 @@ export async function sendNewCommentEmail(
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
           <h2 style="color: #6C5CE7;">Új hozzászólás érkezett</h2>
           <p>Szia ${greeting},</p>
-          <p><strong>${comment.authorName}</strong> hozzászólt egy tickethez amelynek te vagy a felelőse:</p>
+          <p><strong>${comment.authorName}</strong> hozzászólt egy feladathoz amelynek te vagy a felelőse:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
-            <p style="color:#888;font-size:12px;margin:0 0 8px;">Ticket: <strong>${ticket.title}</strong></p>
+            <p style="color:#888;font-size:12px;margin:0 0 8px;">Feladat: <strong>${ticket.title}</strong></p>
             <p style="margin:0;">${cleanMentions(comment.body).slice(0, 300)}${comment.body.length > 300 ? '...' : ''}</p>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            Ticket megtekintése
+            Feladat megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
         </div>
       `,
     })
@@ -185,20 +185,20 @@ export async function sendTicketUpdateEmail(
     const greeting = user.nickname || user.name || 'Kedves Felhasználó'
     await sendEmail({
       to: user.email,
-      subject: `Ticket frissült: ${ticket.title}`,
+      subject: `Feladat frissült: ${ticket.title}`,
       html: `
         <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-          <h2 style="color: #6C5CE7;">Ticket frissült</h2>
+          <h2 style="color: #6C5CE7;">Feladat frissült</h2>
           <p>Szia ${greeting},</p>
-          <p>Egy ticket amelyet követsz frissült:</p>
+          <p>Egy feladat amelyet követsz frissült:</p>
           <div style="background:#f8f9fa;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
             <strong>${ticket.title}</strong>
             <p style="color:#666;margin:8px 0 0;">${changes}</p>
           </div>
           <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-            Ticket megtekintése
+            Feladat megtekintése
           </a>
-          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+          <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
         </div>
       `,
     })
@@ -219,17 +219,17 @@ export async function sendTicketReminderEmail(
     subject: `Emlékeztető: "${ticket.title}" – ${days} napja megoldatlan`,
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6C5CE7;">Emlékeztető – megoldatlan ticket</h2>
+        <h2 style="color: #6C5CE7;">Emlékeztető – megoldatlan feladat</h2>
         <p>Szia ${greeting},</p>
-        <p>Az alábbi ticket már <strong>${days} napja</strong> megoldatlan, és te vagy a felelőse:</p>
+        <p>Az alábbi feladat már <strong>${days} napja</strong> megoldatlan, és te vagy a felelőse:</p>
         <div style="background:#fff8e1;border-left:4px solid #f39c12;padding:16px;border-radius:4px;margin:16px 0;">
           <strong style="font-size:16px;">${ticket.title}</strong>
           <p style="color:#888;font-size:13px;margin:6px 0 0;">Létrehozva: ${ticket.createdAt.toLocaleDateString('hu-HU')}</p>
         </div>
         <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Ticket megtekintése
+          Feladat megtekintése
         </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -251,14 +251,14 @@ export async function sendNudgeEmail(
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Cselekvés szükséges</h2>
         <p>Szia ${greeting},</p>
-        <p><strong>${senderName}</strong> jelezte feléd, hogy az alábbi tickettel foglalkozni kell:</p>
+        <p><strong>${senderName}</strong> jelezte feléd, hogy az alábbi feladattal foglalkozni kell:</p>
         <div style="background:#fff3cd;border-left:4px solid #f39c12;padding:16px;border-radius:4px;margin:16px 0;">
           <strong style="font-size:16px;">${ticket.title}</strong>
         </div>
         <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Ticket megtekintése
+          Feladat megtekintése
         </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -293,9 +293,9 @@ export async function sendSlaBreachEmail(
           <strong style="font-size:16px;">${ticket.title}</strong>
         </div>
         <a href="${ticketUrl}" style="display:inline-block;background:#e17055;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Ticket megtekintése
+          Feladat megtekintése
         </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -315,19 +315,19 @@ export async function sendRoleChangedEmail(
   const greeting = user.nickname || user.firstName || user.name || 'Felhasználó'
   await sendEmail({
     to: user.email,
-    subject: 'myBatz Task – Szerepköröd megváltozott',
+    subject: 'myBatz – Szerepköröd megváltozott',
     html: `
       <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
         <h2 style="color: #6C5CE7;">Szerepkör változás</h2>
         <p>Szia ${greeting},</p>
-        <p>A myBatz Task rendszerben a szerepköröd megváltozott:</p>
+        <p>A myBatz rendszerben a szerepköröd megváltozott:</p>
         <div style="background:#f8f7ff;border-left:4px solid #6C5CE7;padding:16px;border-radius:4px;margin:16px 0;">
           <span style="color:#999;font-size:14px;">${roleLabels[oldRole] || oldRole}</span>
           <span style="margin:0 10px;color:#6C5CE7;font-weight:bold;">→</span>
           <span style="color:#6C5CE7;font-weight:bold;font-size:16px;">${roleLabels[newRole] || newRole}</span>
         </div>
         <p style="color:#666;font-size:14px;">Ha kérdésed van, lépj kapcsolatba az adminisztrátorral.</p>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -353,7 +353,7 @@ export async function sendCalendarEventNotificationEmail(
           <p style="color:#666;margin:0;">📅 ${dateLabel}</p>
           ${event.description ? `<p style="color:#444;margin:12px 0 0;">${event.description}</p>` : ''}
         </div>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })
@@ -382,7 +382,7 @@ export async function sendOfficeWeekReminderEmail(
           <li>Kuka napi ürítése</li>
         </ul>
         <p style="color:#666; font-size:14px;">Köszönjük a közreműködést! 🙏</p>
-        <p style="color:#aaa; font-size:12px; margin-top:24px;">myBatz Task értesítő</p>
+        <p style="color:#aaa; font-size:12px; margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
   })

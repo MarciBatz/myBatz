@@ -560,7 +560,7 @@ export default function AgentsPage() {
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">E-mail értesítések</h3>
                   <div className="space-y-2.5">
                     {([
-                      { key: 'notifyTickets', label: 'Ticketek' },
+                      { key: 'notifyTickets', label: 'Feladatok' },
                       { key: 'notifyCalendarSzuronap', label: 'Szűrőnapok' },
                       { key: 'notifyCalendarHetes', label: 'Irodai hetes' },
                       { key: 'notifyCalendarEgyeb', label: 'Egyéb naptáresemény' },
