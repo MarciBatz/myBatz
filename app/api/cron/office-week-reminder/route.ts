@@ -3,12 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { sendOfficeWeekReminderEmail } from '@/lib/email'
 import { getMonday } from '@/lib/office-weeks'
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export async function GET(_request: NextRequest) {
   const thisMonday = getMonday(new Date())
 
   const week = await prisma.officeWeek.findUnique({
