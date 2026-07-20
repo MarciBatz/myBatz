@@ -18,6 +18,14 @@ export function isImageFile(mimeType?: string | null, fileName?: string) {
   return /\.(jpg|jpeg|png|gif|webp|svg|avif|bmp)$/i.test(fileName)
 }
 
+// Local dev files are public under /uploads; production blobs are private and
+// must be fetched through the authenticated /api/files proxy.
+export function fileHref(fileUrl: string) {
+  if (!fileUrl) return fileUrl
+  if (fileUrl.startsWith('/uploads/') || fileUrl.startsWith('/api/files')) return fileUrl
+  return `/api/files?url=${encodeURIComponent(fileUrl)}`
+}
+
 export function formatBytes(bytes: number) {
   if (!bytes) return ''
   if (bytes < 1024) return `${bytes} B`

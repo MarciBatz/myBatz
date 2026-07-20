@@ -15,12 +15,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'A fájl mérete nem lehet nagyobb 5 MB-nál' }, { status: 400 })
     }
 
-    // Vercel Blob storage (production)
+    // Vercel Blob storage (production) — private store, served through /api/files proxy
     if (process.env.BLOB_READ_WRITE_TOKEN) {
       const { put } = await import('@vercel/blob')
       const ext = file.name.split('.').pop()
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-      const blob = await put(fileName, file, { access: 'public' })
+      const blob = await put(fileName, file, { access: 'private' })
       return NextResponse.json({ url: blob.url, fileName: file.name, size: file.size })
     }
 
@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     console.error('Upload error:', error)
-    const detail = error instanceof Error ? error.message : String(error)
-    return NextResponse.json({ error: `A fájl feltöltése nem sikerült: ${detail}` }, { status: 500 })
+    return NextResponse.json({ error: 'A fájl feltöltése nem sikerült' }, { status: 500 })
   }
 }

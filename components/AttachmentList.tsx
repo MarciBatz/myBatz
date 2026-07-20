@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { isImageFile, formatBytes } from './FileUpload'
+import { isImageFile, formatBytes, fileHref } from './FileUpload'
 
 interface Attachment {
   id: string
@@ -57,7 +57,7 @@ export default function AttachmentList({ attachments }: { attachments: Attachmen
         return (
           <a
             key={a.id}
-            href={a.fileUrl}
+            href={fileHref(a.fileUrl)}
             target="_blank"
             rel="noreferrer"
             download
@@ -109,14 +109,14 @@ export default function AttachmentList({ attachments }: { attachments: Attachmen
           <figure className="max-w-full max-h-full flex flex-col items-center" onClick={e => e.stopPropagation()}>
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src={images[lightboxIndex].fileUrl}
+              src={fileHref(images[lightboxIndex].fileUrl)}
               alt={images[lightboxIndex].fileName}
               className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
             />
             <figcaption className="mt-3 text-white/70 text-sm flex items-center gap-3">
               <span className="truncate max-w-md">{images[lightboxIndex].fileName}</span>
               {images.length > 1 && <span className="text-white/40">{lightboxIndex + 1} / {images.length}</span>}
-              <a href={images[lightboxIndex].fileUrl} download target="_blank" rel="noreferrer"
+              <a href={fileHref(images[lightboxIndex].fileUrl)} download target="_blank" rel="noreferrer"
                 onClick={e => e.stopPropagation()}
                 className="text-indigo-300 hover:text-indigo-200 underline">Letöltés</a>
             </figcaption>
