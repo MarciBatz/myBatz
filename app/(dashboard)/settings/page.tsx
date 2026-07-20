@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import SavedRepliesSection from '@/components/SavedRepliesSection'
 
 interface Category { id: string; name: string }
 
@@ -205,6 +206,9 @@ export default function SettingsPage() {
             </div>
           </form>
         </div>
+
+        {/* Saved replies */}
+        <SavedRepliesSection />
 
         {/* Categories */}
         {canManageCategories && (

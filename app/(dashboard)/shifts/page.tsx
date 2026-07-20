@@ -359,7 +359,7 @@ export default function ShiftsPage() {
         </div>
       </div>
 
-      {showNewModal && <NewEntryModal initialDate={newDate} currentUserId={currentUserId} onClose={() => setShowNewModal(false)} onSaved={() => { setShowNewModal(false); loadData() }} />}
+      {showNewModal && <NewEntryModal initialDate={newDate} currentUserId={currentUserId} isAdmin={isAdmin} onClose={() => setShowNewModal(false)} onSaved={() => { setShowNewModal(false); loadData() }} />}
     </div>
   )
 }
@@ -498,7 +498,7 @@ function OfficeWeekDetail({ week, allUsers, isAdmin, onChanged }: { week: Office
   )
 }
 
-function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initialDate: string; currentUserId: string; onClose: () => void; onSaved: () => void }) {
+function NewEntryModal({ initialDate, currentUserId, isAdmin, onClose, onSaved }: { initialDate: string; currentUserId: string; isAdmin: boolean; onClose: () => void; onSaved: () => void }) {
   const [type, setType] = useState<'egyeb' | 'szabadsag'>('egyeb')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -506,6 +506,7 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
   const [startDate, setStartDate] = useState(initialDate || new Date().toISOString().split('T')[0])
   const [endDate, setEndDate] = useState(initialDate || new Date().toISOString().split('T')[0])
   const [note, setNote] = useState('')
+  const [vacationUserId, setVacationUserId] = useState(currentUserId)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
 
@@ -542,7 +543,7 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
       const notifyUserIds = sendNotify ? (notifyAll ? allUsers.map(u => u.id) : Array.from(selectedUserIds)) : []
       r = await fetch('/api/calendar-events', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ title: title.trim(), description: description.trim() || null, date, type: 'EGYEB', notifyUserIds }) })
     } else {
-      r = await fetch('/api/vacations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate, note: note.trim() || null }) })
+      r = await fetch('/api/vacations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ startDate, endDate, note: note.trim() || null, userId: vacationUserId }) })
     }
     if (r.ok) { onSaved() } else { const d = await r.json(); setError(d.error || 'Hiba történt'); setSaving(false) }
   }
@@ -614,6 +615,16 @@ function NewEntryModal({ initialDate, currentUserId, onClose, onSaved }: { initi
             </>
           ) : (
             <>
+              {isAdmin && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Kinek</label>
+                  <select value={vacationUserId} onChange={e => setVacationUserId(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-sky-300 bg-white">
+                    <option value={currentUserId}>Magam</option>
+                    {allUsers.map(u => <option key={u.id} value={u.id}>{userNameMap[u.id] || u.email}</option>)}
+                  </select>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Kezdete</label>

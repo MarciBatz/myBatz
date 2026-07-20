@@ -6,7 +6,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
-import RichTextEditor from '@/components/RichTextEditor'
+import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024
 
@@ -138,8 +138,10 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 
   const agentNameMap = buildUniqueDisplayNames(agents)
 
-  const loadTickets = useCallback(async () => {
-    setLoading(true)
+  const filtersReady = useRef(false)
+
+  const loadTickets = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
     const params = new URLSearchParams()
     if (status) params.set('status', status)
     if (priority) params.set('priority', priority)
@@ -159,8 +161,54 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 
   useEffect(() => { loadTickets() }, [loadTickets])
 
+  // Restore saved filters from the user's account on mount
+  useEffect(() => {
+    fetch('/api/ticket-filters')
+      .then(r => r.json())
+      .then(d => {
+        const f = d.filters
+        if (f) {
+          if (typeof f.status === 'string') setStatus(f.status)
+          if (typeof f.priority === 'string') setPriority(f.priority)
+          if (typeof f.categoryId === 'string') setCategoryId(f.categoryId)
+          if (typeof f.assigneeId === 'string') setAssigneeId(f.assigneeId)
+          if (typeof f.search === 'string') setSearch(f.search)
+          if (typeof f.showClosed === 'boolean') setShowClosed(f.showClosed)
+        }
+      })
+      .catch(() => {})
+      .finally(() => { filtersReady.current = true })
+  }, [])
+
+  // Persist filters to the user's account whenever they change (debounced)
+  useEffect(() => {
+    if (!filtersReady.current) return
+    const t = setTimeout(() => {
+      fetch('/api/ticket-filters', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filters: { status, priority, categoryId, assigneeId, search, showClosed } }),
+      }).catch(() => {})
+    }, 600)
+    return () => clearTimeout(t)
+  }, [status, priority, categoryId, assigneeId, search, showClosed])
+
+  // Auto-refresh the list (and stats) so new tickets/updates appear without a manual reload
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadTickets(true)
+      if (!ticketsOnly) fetch('/api/dashboard/stats').then(r => r.json()).then(d => setStats(d)).catch(() => {})
+    }, 20000)
+    return () => clearInterval(interval)
+  }, [loadTickets, ticketsOnly])
+
   function clearFilters() {
     setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1)
+    fetch('/api/ticket-filters', {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: null }),
+    }).catch(() => {})
   }
 
   return (
@@ -263,6 +311,11 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             onChange={e => { setSearch(e.target.value); setPage(1) }}
             className="flex-1 min-w-48 px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
           />
+          <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1) }}
+            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
+            <option value="">Minden kategória</option>
+            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
           <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
             <option value="">Minden státusz</option>
@@ -272,11 +325,6 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
             <option value="">Minden prioritás</option>
             {PRIORITY_OPTIONS.filter(Boolean).map(p => <option key={p} value={p}>{{'CRITICAL':'Kritikus','HIGH':'Magas','MEDIUM':'Közepes','LOW':'Alacsony'}[p] ?? p}</option>)}
-          </select>
-          <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1) }}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
-            <option value="">Minden kategória</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <select value={assigneeId} onChange={e => { setAssigneeId(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
@@ -492,6 +540,64 @@ function CreateTicketModal({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Drafts
+  const editorRef = useRef<RichTextEditorHandle>(null)
+  const [draftId, setDraftId] = useState<string | null>(null)
+  const [drafts, setDrafts] = useState<{ id: string; title: string; description: string; priority: string; categoryId: string | null; assigneeId: string | null; updatedAt: string }[]>([])
+  const [showDrafts, setShowDrafts] = useState(false)
+  const draftReady = useRef(false)
+  const submittedRef = useRef(false)
+  const creatingRef = useRef(false)
+
+  const loadDrafts = useCallback(async () => {
+    const r = await fetch('/api/ticket-drafts')
+    const d = await r.json()
+    setDrafts(d.drafts || [])
+  }, [])
+
+  useEffect(() => {
+    loadDrafts().finally(() => { draftReady.current = true })
+  }, [loadDrafts])
+
+  // Continuously autosave the in-progress ticket to a draft (debounced)
+  useEffect(() => {
+    if (!draftReady.current) return
+    if (submittedRef.current) return
+    const hasContent = title.trim() !== '' || (description !== '' && description !== '<p></p>')
+    if (!hasContent) return
+
+    const t = setTimeout(async () => {
+      const payload = { title, description, priority, categoryId: categoryId || null, assigneeId: assigneeId || null }
+      if (draftId) {
+        await fetch(`/api/ticket-drafts/${draftId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
+      } else if (!creatingRef.current) {
+        creatingRef.current = true
+        const r = await fetch('/api/ticket-drafts', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
+        const d = await r.json().catch(() => ({}))
+        if (d.draft?.id) setDraftId(d.draft.id)
+        creatingRef.current = false
+      }
+    }, 1000)
+    return () => clearTimeout(t)
+  }, [title, description, priority, categoryId, assigneeId, draftId])
+
+  function loadDraft(dr: { id: string; title: string; description: string; priority: string; categoryId: string | null; assigneeId: string | null }) {
+    setTitle(dr.title || '')
+    setDescription(dr.description || '')
+    editorRef.current?.setContent(dr.description || '')
+    setPriority(dr.priority || 'MEDIUM')
+    setCategoryId(dr.categoryId || '')
+    setAssigneeId(dr.assigneeId || '')
+    setDraftId(dr.id)
+    setShowDrafts(false)
+  }
+
+  async function deleteDraft(id: string) {
+    await fetch(`/api/ticket-drafts/${id}`, { method: 'DELETE' }).catch(() => {})
+    if (id === draftId) setDraftId(null)
+    loadDrafts()
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError('')
@@ -506,6 +612,9 @@ function CreateTicketModal({
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to create feladat'); return }
+      // Remove the draft once the ticket is created
+      submittedRef.current = true
+      if (draftId) await fetch(`/api/ticket-drafts/${draftId}`, { method: 'DELETE' }).catch(() => {})
       onCreated()
     } catch {
       setError('An unexpected error occurred')
@@ -516,17 +625,33 @@ function CreateTicketModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
-      <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
+      <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
           <h2 className="text-lg font-semibold text-gray-900">Új feladat</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowDrafts(true)}
+              className="relative flex items-center gap-1.5 text-xs text-gray-500 hover:text-indigo-600 border border-gray-200 rounded-lg px-2.5 py-1.5 hover:border-indigo-300 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Piszkozatok
+              {drafts.length > 0 && (
+                <span className="ml-0.5 inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold">{drafts.length}</span>
+              )}
+            </button>
+            <button onClick={onClose} className="text-gray-400 hover:text-gray-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
         </div>
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{error}</div>}
+          {draftId && <p className="text-xs text-gray-400 flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-green-400" /> Piszkozat automatikusan mentve</p>}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Cím</label>
             <input type="text" required value={title} onChange={e => setTitle(e.target.value)}
@@ -535,7 +660,7 @@ function CreateTicketModal({
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Leírás</label>
-            <RichTextEditor value={description} onChange={(html) => setDescription(html)} placeholder="Részletes leírás..." minHeight="120px" />
+            <RichTextEditor editorRef={editorRef} value={description} onChange={(html) => setDescription(html)} placeholder="Részletes leírás..." minHeight="120px" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
@@ -575,6 +700,41 @@ function CreateTicketModal({
             </button>
           </div>
         </form>
+
+        {/* Drafts panel */}
+        {showDrafts && (
+          <div className="absolute inset-0 z-10 flex flex-col bg-white rounded-2xl">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 flex-shrink-0">
+              <h2 className="text-lg font-semibold text-gray-900">Piszkozatok</h2>
+              <button onClick={() => setShowDrafts(false)} className="text-gray-400 hover:text-gray-600">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <div className="p-4 overflow-y-auto">
+              {drafts.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-8">Nincs mentett piszkozat</p>
+              ) : (
+                <div className="space-y-2">
+                  {drafts.map(dr => (
+                    <div key={dr.id} className={`flex items-start justify-between gap-3 p-3 rounded-xl border ${dr.id === draftId ? 'border-indigo-200 bg-indigo-50/50' : 'border-gray-100 hover:bg-gray-50'}`}>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900 truncate">{dr.title || '(cím nélkül)'}</p>
+                        <p className="text-xs text-gray-400 truncate mt-0.5">{(dr.description || '').replace(/<[^>]+>/g, '').slice(0, 60) || '(üres)'}</p>
+                        <p className="text-[11px] text-gray-300 mt-1">Módosítva: {formatRelativeTime(dr.updatedAt)}</p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <button type="button" onClick={() => loadDraft(dr)} className="text-xs text-indigo-500 hover:text-indigo-700 px-2 py-1 rounded border border-indigo-100 hover:border-indigo-200">Betöltés</button>
+                        <button type="button" onClick={() => deleteDraft(dr.id)} className="text-xs text-red-400 hover:text-red-600 px-2 py-1 rounded border border-red-50 hover:border-red-100">Törlés</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

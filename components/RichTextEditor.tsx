@@ -11,6 +11,7 @@ export interface RichTextEditorHandle {
   insertText: (text: string) => void
   replaceMentionQuery: (query: string, replacement: string) => void
   getText: () => string
+  setContent: (html: string) => void
 }
 
 interface RichTextEditorProps {
@@ -86,6 +87,9 @@ export default function RichTextEditor({ value, onChange, placeholder = 'Írj va
         .run()
     },
     getText: () => editor?.getText() ?? '',
+    setContent: (html: string) => {
+      editor?.commands.setContent(html || '')
+    },
   }), [editor])
 
   if (!editor) return null

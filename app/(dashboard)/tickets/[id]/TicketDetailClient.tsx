@@ -177,6 +177,12 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     setLoading(false)
   }, [ticketId])
 
+  // Auto-refresh so new comments/updates appear without a manual reload
+  useEffect(() => {
+    const interval = setInterval(() => { loadTicket() }, 15000)
+    return () => clearInterval(interval)
+  }, [loadTicket])
+
   useEffect(() => {
     loadTicket()
     fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
@@ -242,7 +248,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
   function actionLabel(activity: Activity) {
     const map: Record<string, string> = {
-      created: 'létrehozta a ticketet',
+      created: 'létrehozta a feladatot',
       comment_added: 'megjegyzést fűzött',
       internal_note_added: 'belső megjegyzést adott',
       status_changed: `státuszt változtatott → ${activity.newValue}`,

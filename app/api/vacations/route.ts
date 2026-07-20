@@ -31,11 +31,18 @@ export async function POST(request: NextRequest) {
   const session = await getSessionFromRequest(request)
   if (!session) return unauthorizedResponse()
 
-  const { startDate, endDate, note } = await request.json()
+  const { startDate, endDate, note, userId } = await request.json()
   if (!startDate || !endDate) return NextResponse.json({ error: 'Kezdő és záró dátum kötelező' }, { status: 400 })
 
+  // Admin can create a vacation for another user; everyone else only for themselves
+  let targetUserId = session.id
+  if (userId && userId !== session.id) {
+    if (session.role !== 'ADMIN') return NextResponse.json({ error: 'Nincs jogosultság' }, { status: 403 })
+    targetUserId = userId
+  }
+
   const vacation = await prisma.vacation.create({
-    data: { userId: session.id, startDate: new Date(startDate), endDate: new Date(endDate), note: note || null },
+    data: { userId: targetUserId, startDate: new Date(startDate), endDate: new Date(endDate), note: note || null },
     include: { user: { select: { id: true, name: true, firstName: true, nickname: true, email: true } } },
   })
 

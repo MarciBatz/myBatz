@@ -57,6 +57,7 @@ model User {
   calendarEvents  CalendarEvent[]
   officeWeeks     OfficeWeek[]
   vacations       Vacation[]
+  ticketDrafts    TicketDraft[]
   preferences     UserPreferences?
   permissions     UserPermissions?
 }
@@ -210,6 +211,7 @@ model UserPreferences {
   notifyCalendarHetes       Boolean @default(true)
   notifyCalendarEgyeb       Boolean @default(true)
   excludeFromOfficeRotation Boolean @default(false)
+  ticketFilters             String? @db.Text
 }
 
 model UserPermissions {
@@ -222,6 +224,19 @@ model UserPermissions {
   canDeleteTickets            Boolean @default(false)
   canDeleteComments           Boolean @default(false)
   canManageCategories         Boolean @default(false)
+}
+
+model TicketDraft {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String   @default("")
+  description String   @default("") @db.Text
+  priority    String   @default("MEDIUM")
+  categoryId  String?
+  assigneeId  String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Vacation {

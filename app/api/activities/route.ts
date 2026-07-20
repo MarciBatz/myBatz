@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireSession, unauthorizedResponse } from '@/lib/auth'
+import { requireAdmin, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 
 export async function GET(request: NextRequest) {
   try {
-    await requireSession(request)
+    await requireAdmin(request)
     const { searchParams } = request.nextUrl
 
     const userId = searchParams.get('userId') || undefined
@@ -31,6 +31,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ activities, total, page, pageSize })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
+    if (error instanceof Error && error.message === 'FORBIDDEN') return forbiddenResponse()
     console.error('Activities GET error:', error)
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
