@@ -275,7 +275,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                       )}
                       {agents
                         .filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())))
-                        .slice(0, 5)
+
                         .map(a => (
                           <button key={a.id} type="button"
                             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
