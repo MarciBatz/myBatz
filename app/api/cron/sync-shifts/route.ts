@@ -2,12 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { fetchSheetRows } from '@/lib/sheets'
 
-export async function GET(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
+export async function GET(_request: NextRequest) {
   try {
     const tab = '2026'
     const rows = await fetchSheetRows(tab)
