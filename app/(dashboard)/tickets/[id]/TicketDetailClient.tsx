@@ -7,7 +7,7 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDateTime, displayName } from '@/lib/utils'
+import { formatRelativeTime, formatDateTime, displayName, buildUniqueDisplayNames } from '@/lib/utils'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
 
@@ -35,7 +35,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [ticket, setTicket] = useState<Ticket | null>(null)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [agents, setAgents] = useState<{ id: string; name: string | null; email: string }[]>([])
+  const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string }[]>([])
   const [comment, setComment] = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [commentAttachments, setCommentAttachments] = useState<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]>([])
@@ -256,7 +256,14 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                     placeholder={isInternal ? 'Belső megjegyzés (csak az agenteknek látható)...' : 'Írj megjegyzést... (@névvel megemlíthetsz valakit)'}
                     minHeight="100px"
                   />
-                  {mentionQuery !== null && (
+                  {mentionQuery !== null && (() => {
+                    const uniqueNames = buildUniqueDisplayNames(agents)
+                    const filtered = agents.filter(a => {
+                      if (a.id === user.id) return false
+                      const uname = uniqueNames[a.id] || a.email
+                      return uname.toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())
+                    })
+                    return (
                     <div className="absolute z-10 left-0 right-0 bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-40 overflow-y-auto">
                       {'mindenki'.includes(mentionQuery.toLowerCase()) && (
                         <button type="button"
@@ -273,30 +280,30 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                           <span className="text-xs text-gray-400 ml-1">— mindenkit értesít</span>
                         </button>
                       )}
-                      {agents
-                        .filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())))
-
-                        .map(a => (
+                      {filtered.map(a => {
+                        const uname = uniqueNames[a.id] || a.email
+                        return (
                           <button key={a.id} type="button"
                             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50 flex items-center gap-2"
                             onMouseDown={e => {
                               e.preventDefault()
-                              const name = displayName(a) || a.email
-                              const mentionTag = `@[${name}](${a.id}) `
+                              const mentionTag = `@[${uname}](${a.id}) `
                               editorRef.current?.replaceMentionQuery(mentionQuery ?? '', mentionTag)
                               setMentionQuery(null)
                             }}>
                             <span className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-medium flex-shrink-0" style={{ background: '#6C5CE7' }}>
-                              {(displayName(a) || a.email)[0].toUpperCase()}
+                              {uname[0].toUpperCase()}
                             </span>
-                            <span>{displayName(a) || a.email}</span>
+                            <span>{uname}</span>
                           </button>
-                        ))}
-                      {'mindenki'.includes(mentionQuery.toLowerCase()) === false && agents.filter(a => a.id !== user.id && (displayName(a).toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase()))).length === 0 && (
+                        )
+                      })}
+                      {'mindenki'.includes(mentionQuery.toLowerCase()) === false && filtered.length === 0 && (
                         <p className="px-3 py-2 text-sm text-gray-400">Nincs találat</p>
                       )}
                     </div>
-                  )}
+                    )
+                  })()}
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
