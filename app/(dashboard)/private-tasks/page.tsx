@@ -210,6 +210,12 @@ export default function PrivateTasksPage() {
                               {formatDate(t.dueDate)}
                             </span>
                           )}
+                          {!!t._count?.comments && (
+                            <span className="text-[11px] text-gray-500 flex items-center gap-0.5" title={`${t._count.comments} haladás bejegyzés`}>
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.86 9.86 0 01-4-.8L3 20l1.3-3.9A7.96 7.96 0 013 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" /></svg>
+                              {t._count.comments}
+                            </span>
+                          )}
                         </div>
 
                         {t.ticket && (

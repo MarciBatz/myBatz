@@ -24,7 +24,10 @@ export async function GET(request: NextRequest) {
     const [tasks, linkableTickets] = await Promise.all([
       prisma.privateTask.findMany({
         where: { userId: session.id },
-        include: { ticket: { select: { id: true, title: true, status: true } } },
+        include: {
+          ticket: { select: { id: true, title: true, status: true } },
+          _count: { select: { comments: true } },
+        },
         orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
       }),
       prisma.ticket.findMany({

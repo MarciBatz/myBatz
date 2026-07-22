@@ -226,11 +226,26 @@ model PrivateTask {
   position    Int               @default(0)
   ticketId    String?
   ticket      Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  comments    PrivateTaskComment[]
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   @@index([userId, column])
   @@index([ticketId])
+}
+
+/// Progress notes on a private task. Readable only through the parent task, so
+/// they inherit its owner-only rule. Writing one touches the parent's updatedAt
+/// — that timestamp is what the public ticket surfaces as "last updated".
+model PrivateTaskComment {
+  id            String      @id @default(cuid())
+  privateTaskId String
+  privateTask   PrivateTask @relation(fields: [privateTaskId], references: [id], onDelete: Cascade)
+  body          String      @db.Text
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([privateTaskId])
 }
 
 model UserPreferences {

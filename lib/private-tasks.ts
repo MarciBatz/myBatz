@@ -49,6 +49,14 @@ export interface PrivateTask {
   position: number
   ticketId: string | null
   ticket: { id: string; title: string; status: string } | null
+  _count?: { comments: number }
+  createdAt: string
+  updatedAt: string
+}
+
+export interface PrivateTaskComment {
+  id: string
+  body: string
   createdAt: string
   updatedAt: string
 }
