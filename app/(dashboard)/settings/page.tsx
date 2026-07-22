@@ -128,13 +128,13 @@ export default function SettingsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Vezetéknév</label>
-                <input type="text" value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))}
+                <input type="text" autoComplete="family-name" value={profile.lastName} onChange={e => setProfile(p => ({ ...p, lastName: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   placeholder="Nagy" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Keresztnév</label>
-                <input type="text" value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))}
+                <input type="text" autoComplete="given-name" value={profile.firstName} onChange={e => setProfile(p => ({ ...p, firstName: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   placeholder="Béla" />
               </div>
@@ -146,13 +146,17 @@ export default function SettingsPage() {
                   Becenév
                   <span className="ml-1.5 text-xs text-gray-400 font-normal">ha megadod, mindenhol ez jelenik meg</span>
                 </label>
-                <input type="text" value={profile.nickname} onChange={e => setProfile(p => ({ ...p, nickname: e.target.value }))}
+                <input type="text" autoComplete="nickname" value={profile.nickname} onChange={e => setProfile(p => ({ ...p, nickname: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   placeholder="pl. Béci" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Avatar URL (kép link)</label>
-                <input type="url" value={profile.avatarUrl} onChange={e => setProfile(p => ({ ...p, avatarUrl: e.target.value }))}
+                {/* autoComplete="off" alone isn't always enough to stop Chrome
+                    filling this with the saved login email — it treats any text
+                    field before a password field as a likely username. A
+                    nonstandard token reliably breaks that association. */}
+                <input type="url" autoComplete="avatar-url-no-autofill" value={profile.avatarUrl} onChange={e => setProfile(p => ({ ...p, avatarUrl: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   placeholder="https://..." />
               </div>
@@ -181,17 +185,17 @@ export default function SettingsPage() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Jelenlegi jelszó</label>
-                  <input type="password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
+                  <input type="password" autoComplete="current-password" value={currentPassword} onChange={e => setCurrentPassword(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Új jelszó</label>
-                  <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
+                  <input type="password" autoComplete="new-password" value={newPassword} onChange={e => setNewPassword(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Új jelszó megerősítése</label>
-                  <input type="password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
+                  <input type="password" autoComplete="new-password" value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)}
                     className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400" />
                 </div>
               </div>
