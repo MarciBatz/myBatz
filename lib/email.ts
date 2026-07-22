@@ -41,6 +41,74 @@ async function sendEmail(payload: EmailPayload): Promise<void> {
   }
 }
 
+/**
+ * Sends many distinct emails (different recipient, same or different content)
+ * as one Resend batch call instead of one HTTP request per recipient.
+ *
+ * This exists because firing N concurrent `sendEmail` calls via Promise.all —
+ * the pattern used for "notify everyone" features — hits Resend's per-second
+ * rate limit once N gets past a handful. sendEmail swallows failed sends
+ * (logs and returns), so a rate-limited batch looks fully successful to the
+ * caller: the UI reports "sent to everyone" while most never went out.
+ * A single batch request has no such concurrency to rate-limit.
+ *
+ * Resend caps a batch call at 100 emails, so larger recipient lists are split
+ * into sequential chunks. Returns how many were actually accepted so callers
+ * can report a true count instead of just `recipients.length`.
+ */
+async function sendEmailBatch(payloads: EmailPayload[]): Promise<{ sent: number; failed: number }> {
+  if (payloads.length === 0) return { sent: 0, failed: 0 }
+
+  if (!process.env.EMAIL_API_KEY) {
+    for (const p of payloads) {
+      const recipients = Array.isArray(p.to) ? p.to : [p.to]
+      console.log('\n=== EMAIL (console fallback) ===')
+      console.log('To:', recipients.join(', '))
+      console.log('Subject:', p.subject)
+      console.log('Body:', p.html.replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim())
+      console.log('================================\n')
+    }
+    return { sent: payloads.length, failed: 0 }
+  }
+
+  const CHUNK_SIZE = 100
+  let sent = 0
+  let failed = 0
+
+  for (let i = 0; i < payloads.length; i += CHUNK_SIZE) {
+    const chunk = payloads.slice(i, i + CHUNK_SIZE)
+    try {
+      const response = await fetch('https://api.resend.com/emails/batch', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.EMAIL_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(
+          chunk.map(p => ({
+            from: process.env.EMAIL_FROM || 'noreply@example.com',
+            to: p.to,
+            subject: p.subject,
+            html: p.html,
+          }))
+        ),
+      })
+      if (response.ok) {
+        sent += chunk.length
+      } else {
+        const error = await response.text()
+        console.error('Email batch send error:', error)
+        failed += chunk.length
+      }
+    } catch (error) {
+      console.error('Email batch send error:', error)
+      failed += chunk.length
+    }
+  }
+
+  return { sent, failed }
+}
+
 export async function sendInviteEmail(
   email: string,
   token: string,
@@ -383,14 +451,14 @@ function renderChangelogHtml(content: string): string {
   return out.join('')
 }
 
-export async function sendChangelogEmail(
+function changelogEmailPayload(
   recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
   entry: { version: string; title: string; content: string },
   senderName: string
-): Promise<void> {
+): EmailPayload {
   const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
   const appUrl = process.env.APP_URL || 'http://localhost:3000'
-  await sendEmail({
+  return {
     to: recipient.email,
     subject: `myBatz újdonságok – ${entry.version} ${entry.title}`,
     html: `
@@ -409,7 +477,27 @@ export async function sendChangelogEmail(
         <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
-  })
+  }
+}
+
+export async function sendChangelogEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  entry: { version: string; title: string; content: string },
+  senderName: string
+): Promise<void> {
+  await sendEmail(changelogEmailPayload(recipient, entry, senderName))
+}
+
+/**
+ * Bulk variant for "notify everyone" — see sendEmailBatch for why this exists
+ * instead of Promise.all-ing sendChangelogEmail per recipient.
+ */
+export async function sendChangelogEmails(
+  recipients: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null }[],
+  entry: { version: string; title: string; content: string },
+  senderName: string
+): Promise<{ sent: number; failed: number }> {
+  return sendEmailBatch(recipients.map(r => changelogEmailPayload(r, entry, senderName)))
 }
 
 export async function sendOfficeWeekReminderEmail(

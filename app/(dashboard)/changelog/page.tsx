@@ -33,6 +33,7 @@ export default function ChangelogPage() {
   const [sendNotify, setSendNotify] = useState(false)
   const [notifyAll, setNotifyAll] = useState(true)
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+  const [notifyResult, setNotifyResult] = useState<{ notified: number; failed: number } | null>(null)
 
   const userNameMap = buildUniqueDisplayNames(allUsers)
 
@@ -99,11 +100,15 @@ export default function ChangelogPage() {
       const notifyUserIds = sendNotify
         ? (notifyAll ? allUsers.map(u => u.id) : Array.from(selectedUserIds))
         : []
-      await fetch('/api/changelog', {
+      const res = await fetch('/api/changelog', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ...form, notifyUserIds }),
       })
+      if (res.ok && notifyUserIds.length > 0) {
+        const d = await res.json()
+        setNotifyResult({ notified: d.notified ?? 0, failed: d.failed ?? 0 })
+      }
     }
     setSaving(false)
     closeForm()
@@ -272,6 +277,19 @@ export default function ChangelogPage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {notifyResult && (
+        <div className={`mb-6 px-4 py-3 rounded-xl text-sm flex items-center justify-between ${
+          notifyResult.failed > 0 ? 'bg-amber-50 text-amber-700 border border-amber-100' : 'bg-green-50 text-green-700 border border-green-100'
+        }`}>
+          <span>
+            {notifyResult.failed > 0
+              ? `Értesítő kiküldve ${notifyResult.notified} főnek, ${notifyResult.failed} kézbesítés nem sikerült — próbáld újra, vagy nézd meg a Resend naplót.`
+              : `Értesítő kiküldve ${notifyResult.notified} főnek.`}
+          </span>
+          <button onClick={() => setNotifyResult(null)} className="text-current opacity-60 hover:opacity-100 ml-3">✕</button>
         </div>
       )}
 

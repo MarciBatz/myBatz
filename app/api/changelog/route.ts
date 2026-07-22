@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
-import { sendChangelogEmail } from '@/lib/email'
+import { sendChangelogEmails } from '@/lib/email'
 
 export async function GET(request: NextRequest) {
   const session = await getSessionFromRequest(request)
@@ -35,17 +35,19 @@ export async function POST(request: NextRequest) {
 
   // Notify the explicitly selected recipients. Unlike automatic notifications
   // this is a deliberate admin choice, so no per-user preference gates it.
+  // Sent as one batch call rather than N concurrent requests — see
+  // sendEmailBatch in lib/email.ts for why that matters here specifically.
   let notified = 0
+  let failed = 0
   if (Array.isArray(notifyUserIds) && notifyUserIds.length > 0) {
     const recipients = await prisma.user.findMany({
       where: { id: { in: notifyUserIds }, status: 'ACTIVE' },
       select: { email: true, name: true, firstName: true, nickname: true },
     })
-    await Promise.all(
-      recipients.map(r => sendChangelogEmail(r, { version, title, content }, authorName))
-    )
-    notified = recipients.length
+    const result = await sendChangelogEmails(recipients, { version, title, content }, authorName)
+    notified = result.sent
+    failed = result.failed
   }
 
-  return NextResponse.json({ entry, notified }, { status: 201 })
+  return NextResponse.json({ entry, notified, failed }, { status: 201 })
 }
