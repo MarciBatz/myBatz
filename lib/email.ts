@@ -1,3 +1,5 @@
+import { renderInlineMarkup } from './utils'
+
 interface EmailPayload {
   to: string | string[]
   subject: string
@@ -361,8 +363,7 @@ export async function sendCalendarEventNotificationEmail(
 
 // Renders the changelog's lightweight markup (## / ### / - / **bold**) as email HTML
 function renderChangelogHtml(content: string): string {
-  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-  const inline = (s: string) => escape(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  const inline = renderInlineMarkup
   const lines = content.split('\n')
   const out: string[] = []
   let i = 0

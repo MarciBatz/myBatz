@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { buildUniqueDisplayNames } from '@/lib/utils'
+import { buildUniqueDisplayNames, renderInlineMarkup } from '@/lib/utils'
 
 interface ChangelogEntry {
   id: string
@@ -129,9 +129,11 @@ export default function ChangelogPage() {
       const line = lines[i].trim()
       if (!line) { i++; continue }
       if (line.startsWith('### ')) {
-        elements.push(<h3 key={i} className="text-sm font-semibold text-gray-700 mt-4 mb-1.5">{line.slice(4)}</h3>)
+        elements.push(<h3 key={i} className="text-sm font-semibold text-gray-700 mt-4 mb-1.5"
+          dangerouslySetInnerHTML={{ __html: renderInlineMarkup(line.slice(4)) }} />)
       } else if (line.startsWith('## ')) {
-        elements.push(<h2 key={i} className="text-base font-semibold text-gray-900 mt-5 mb-2">{line.slice(3)}</h2>)
+        elements.push(<h2 key={i} className="text-base font-semibold text-gray-900 mt-5 mb-2"
+          dangerouslySetInnerHTML={{ __html: renderInlineMarkup(line.slice(3)) }} />)
       } else if (line.startsWith('- ')) {
         const items: string[] = []
         while (i < lines.length && lines[i].trim().startsWith('- ')) {
@@ -143,14 +145,15 @@ export default function ChangelogPage() {
             {items.map((item, j) => (
               <li key={j} className="flex items-start gap-2 text-sm text-gray-600">
                 <span className="text-indigo-400 mt-0.5 shrink-0">•</span>
-                <span dangerouslySetInnerHTML={{ __html: item.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>') }} />
+                <span dangerouslySetInnerHTML={{ __html: renderInlineMarkup(item) }} />
               </li>
             ))}
           </ul>
         )
         continue
       } else {
-        elements.push(<p key={i} className="text-sm text-gray-600 mb-2">{line}</p>)
+        elements.push(<p key={i} className="text-sm text-gray-600 mb-2"
+          dangerouslySetInnerHTML={{ __html: renderInlineMarkup(line) }} />)
       }
       i++
     }

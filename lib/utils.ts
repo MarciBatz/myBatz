@@ -26,6 +26,16 @@ export function buildUniqueDisplayNames(users: NameableUser[]): Record<string, s
   return result
 }
 
+// Escapes HTML, then applies the changelog's inline **bold** markup.
+// Shared by the changelog page and the changelog email so the two can't drift apart.
+export function renderInlineMarkup(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+}
+
 export function formatRelativeTime(date: Date | string): string {
   const d = new Date(date)
   const now = new Date()
