@@ -10,6 +10,7 @@ import {
   COLUMN_LABELS,
   COLUMN_COLORS,
   type PrivateTaskColumnValue,
+  canUsePrivateTasks,
   type PrivateTask,
   type LinkableTicket,
 } from '@/lib/private-tasks'
@@ -33,7 +34,7 @@ export default function PrivateTasksPage() {
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
-      if (d.user?.role === 'ADMIN') {
+      if (canUsePrivateTasks(d.user?.role)) {
         setAllowed(true)
         load()
       } else {

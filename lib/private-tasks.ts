@@ -5,11 +5,18 @@
  */
 
 /**
- * While the feature is being built it is limited to administrators. Flip this
- * to false to open it to everyone — it is the single switch guarding both the
- * API routes and the navigation entry.
+ * Set while the feature was being built, to keep it off everyone's menu. Now
+ * open to admins and agents; readers are excluded because every other write
+ * path in the app excludes them.
  */
-export const PRIVATE_TASKS_ADMIN_ONLY = true
+export const PRIVATE_TASKS_ADMIN_ONLY = false
+
+/** Roles that get a private board. Kept here so the API, the page guard and the nav agree. */
+export function canUsePrivateTasks(role: string | undefined): boolean {
+  if (!role) return false
+  if (PRIVATE_TASKS_ADMIN_ONLY) return role === 'ADMIN'
+  return role === 'ADMIN' || role === 'AGENT'
+}
 
 export const PRIVATE_TASK_COLUMNS = ['TODO', 'IN_PROGRESS', 'BLOCKED', 'DONE'] as const
 export type PrivateTaskColumnValue = (typeof PRIVATE_TASK_COLUMNS)[number]
