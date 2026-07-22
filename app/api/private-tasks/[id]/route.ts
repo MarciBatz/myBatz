@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { isPrivateTaskColumn } from '@/lib/private-tasks'
+import { writeAuditLog } from '@/lib/audit'
 
 async function assertLinkable(ticketId: string, userId: string): Promise<boolean> {
   const ticket = await prisma.ticket.findFirst({
@@ -53,6 +54,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
       include: { ticket: { select: { id: true, title: true, status: true } } },
     })
+
+    // This route only fires from the modal's explicit "Mentés" — the board's
+    // drag-and-drop reorder goes through a separate endpoint — so one save
+    // click means one log line, not one per field.
+    await writeAuditLog(session.id, 'private_task_updated', `Privát feladat módosítva (ID: ${task.id})`, request)
 
     return NextResponse.json({ task })
   } catch (error) {

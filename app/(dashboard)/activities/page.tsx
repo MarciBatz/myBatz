@@ -39,6 +39,9 @@ const AUDIT_LABELS: Record<string, { label: string; color: string }> = {
   status_changed:  { label: 'Státusz változás',      color: 'bg-orange-100 text-orange-700' },
   user_invited:    { label: 'Felhasználó meghívva',  color: 'bg-indigo-100 text-indigo-700' },
   user_deleted:    { label: 'Felhasználó törölve',   color: 'bg-red-100 text-red-700' },
+  private_task_created:   { label: 'Privát feladat létrehozva', color: 'bg-violet-100 text-violet-700' },
+  private_task_updated:   { label: 'Privát feladat módosítva',  color: 'bg-violet-100 text-violet-700' },
+  private_task_commented: { label: 'Privát feladat: megjegyzés', color: 'bg-violet-100 text-violet-700' },
 }
 
 function userName(u: { name: string | null; firstName?: string | null; nickname?: string | null; email: string } | null) {

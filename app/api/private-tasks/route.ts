@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { isPrivateTaskColumn } from '@/lib/private-tasks'
+import { writeAuditLog } from '@/lib/audit'
 
 /**
  * A ticket may only be linked if the caller is still its assignee and it is
@@ -76,6 +77,10 @@ export async function POST(request: NextRequest) {
       },
       include: { ticket: { select: { id: true, title: true, status: true } } },
     })
+
+    // Content-free by design: only that a private task exists and its id, so
+    // the log can show usage without ever naming what the task is about.
+    await writeAuditLog(session.id, 'private_task_created', `Privát feladat létrehozva (ID: ${task.id})`, request)
 
     return NextResponse.json({ task }, { status: 201 })
   } catch (error) {

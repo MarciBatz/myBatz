@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
+import { writeAuditLog } from '@/lib/audit'
 
 /** Resolves the task only if it belongs to the caller. */
 async function ownedTask(taskId: string, userId: string) {
@@ -55,6 +56,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       }),
       prisma.privateTask.update({ where: { id }, data: { updatedAt: new Date() } }),
     ])
+
+    await writeAuditLog(session.id, 'private_task_commented', `Megjegyzés írva egy privát feladathoz (ID: ${id})`, request)
 
     return NextResponse.json({ comment }, { status: 201 })
   } catch (error) {
