@@ -124,7 +124,7 @@ export default function PrivateTasksPage() {
           <div className="min-w-0">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Privát feladataim</h1>
             <p className="text-gray-500 text-xs sm:text-sm">
-              A feladataid tartalmát rajtad kívül senki nem látja. A Napló csak annyit rögzít, hogy történt itt valami.
+              A feladataid tartalmát rajtad kívül senki nem látja.
             </p>
           </div>
         </div>
