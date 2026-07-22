@@ -359,6 +359,65 @@ export async function sendCalendarEventNotificationEmail(
   })
 }
 
+// Renders the changelog's lightweight markup (## / ### / - / **bold**) as email HTML
+function renderChangelogHtml(content: string): string {
+  const escape = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+  const inline = (s: string) => escape(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+  const lines = content.split('\n')
+  const out: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    const line = lines[i].trim()
+    if (!line) { i++; continue }
+    if (line.startsWith('### ')) {
+      out.push(`<h3 style="font-size:14px;color:#374151;margin:16px 0 6px;">${inline(line.slice(4))}</h3>`)
+    } else if (line.startsWith('## ')) {
+      out.push(`<h2 style="font-size:16px;color:#111827;margin:20px 0 8px;">${inline(line.slice(3))}</h2>`)
+    } else if (line.startsWith('- ')) {
+      const items: string[] = []
+      while (i < lines.length && lines[i].trim().startsWith('- ')) {
+        items.push(lines[i].trim().slice(2))
+        i++
+      }
+      out.push(`<ul style="margin:0 0 12px;padding-left:20px;color:#4b5563;line-height:1.8;">${items.map(it => `<li>${inline(it)}</li>`).join('')}</ul>`)
+      continue
+    } else {
+      out.push(`<p style="color:#4b5563;margin:0 0 8px;">${inline(line)}</p>`)
+    }
+    i++
+  }
+  return out.join('')
+}
+
+export async function sendChangelogEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  entry: { version: string; title: string; content: string },
+  senderName: string
+): Promise<void> {
+  const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  await sendEmail({
+    to: recipient.email,
+    subject: `myBatz újdonságok – ${entry.version} ${entry.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #6C5CE7;">✨ Újdonságok a myBatz-ban</h2>
+        <p>Szia ${greeting},</p>
+        <p><strong>${senderName}</strong> új changelog bejegyzést tett közzé:</p>
+        <div style="background:#f5f3ff;border-left:4px solid #6C5CE7;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="margin:0 0 4px;">
+            <span style="display:inline-block;background:#6C5CE7;color:#fff;font-size:12px;font-weight:bold;padding:2px 10px;border-radius:999px;">${entry.version}</span>
+          </p>
+          <p style="font-size:18px;font-weight:bold;margin:8px 0 12px;">${entry.title}</p>
+          ${renderChangelogHtml(entry.content)}
+        </div>
+        <p><a href="${appUrl}/changelog" style="color:#6C5CE7;">Megnyitás a myBatz-ban →</a></p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
+      </div>
+    `,
+  })
+}
+
 export async function sendOfficeWeekReminderEmail(
   user: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
   weekStart: Date

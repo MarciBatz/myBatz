@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
+import { buildUniqueDisplayNames } from '@/lib/utils'
 
 interface ChangelogEntry {
   id: string
@@ -12,17 +13,35 @@ interface ChangelogEntry {
   publishedAt: string
 }
 
+interface NotifyUser {
+  id: string
+  name: string | null
+  firstName?: string | null
+  nickname?: string | null
+  email: string
+}
+
 export default function ChangelogPage() {
   const [entries, setEntries] = useState<ChangelogEntry[]>([])
   const [isAdmin, setIsAdmin] = useState(false)
   const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
   const [form, setForm] = useState({ version: '', title: '', content: '' })
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [allUsers, setAllUsers] = useState<NotifyUser[]>([])
+  const [sendNotify, setSendNotify] = useState(false)
+  const [notifyAll, setNotifyAll] = useState(true)
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
+
+  const userNameMap = buildUniqueDisplayNames(allUsers)
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
-      if (d.user?.role === 'ADMIN') setIsAdmin(true)
+      if (d.user?.role === 'ADMIN') {
+        setIsAdmin(true)
+        fetch('/api/users').then(r => r.json()).then(u => setAllUsers(u.users || []))
+      }
     })
     loadEntries()
   }, [])
@@ -31,17 +50,63 @@ export default function ChangelogPage() {
     fetch('/api/changelog').then(r => r.json()).then(d => setEntries(d.entries || []))
   }
 
+  function toggleUser(id: string) {
+    setSelectedUserIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function closeForm() {
+    setShowForm(false)
+    setEditingId(null)
+    setForm({ version: '', title: '', content: '' })
+    setSendNotify(false)
+    setNotifyAll(true)
+    setSelectedUserIds(new Set())
+  }
+
+  function startCreate() {
+    setEditingId(null)
+    setForm({ version: '', title: '', content: '' })
+    setSendNotify(false)
+    setNotifyAll(true)
+    setSelectedUserIds(new Set())
+    setShowForm(true)
+  }
+
+  function startEdit(entry: ChangelogEntry) {
+    setEditingId(entry.id)
+    setForm({ version: entry.version, title: entry.title, content: entry.content })
+    setSendNotify(false)
+    setShowForm(true)
+    // The form renders at the top of the page — bring it into view.
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
   async function handleSave() {
     if (!form.version || !form.title || !form.content) return
     setSaving(true)
-    await fetch('/api/changelog', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(form),
-    })
+    if (editingId) {
+      await fetch(`/api/changelog/${editingId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(form),
+      })
+    } else {
+      const notifyUserIds = sendNotify
+        ? (notifyAll ? allUsers.map(u => u.id) : Array.from(selectedUserIds))
+        : []
+      await fetch('/api/changelog', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...form, notifyUserIds }),
+      })
+    }
     setSaving(false)
-    setShowForm(false)
-    setForm({ version: '', title: '', content: '' })
+    closeForm()
     loadEntries()
   }
 
@@ -112,7 +177,7 @@ export default function ChangelogPage() {
             </div>
           </div>
           {isAdmin && (
-            <button onClick={() => setShowForm(true)}
+            <button onClick={startCreate}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white rounded-xl"
               style={{ background: '#6C5CE7' }}>
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
@@ -125,7 +190,9 @@ export default function ChangelogPage() {
       {/* Create form */}
       {showForm && (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-6 mb-6">
-          <h2 className="text-base font-semibold text-gray-900 mb-4">Új changelog bejegyzés</h2>
+          <h2 className="text-base font-semibold text-gray-900 mb-4">
+            {editingId ? 'Bejegyzés szerkesztése' : 'Új changelog bejegyzés'}
+          </h2>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -149,13 +216,56 @@ export default function ChangelogPage() {
                 className="w-full px-3 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 font-mono"
                 placeholder="## Új funkciók&#10;- Valami új&#10;&#10;## Hibajavítások&#10;- Valami javítás" />
             </div>
+            {/* Notification section — only when publishing a new entry */}
+            {!editingId && (
+              <div className="border-t border-gray-100 pt-3">
+                <label className="flex items-center gap-2 cursor-pointer select-none mb-2">
+                  <div
+                    className="relative w-9 h-5 rounded-full transition-colors cursor-pointer flex-shrink-0"
+                    style={{ background: sendNotify ? '#6C5CE7' : '#e5e7eb' }}
+                    onClick={() => setSendNotify(v => !v)}
+                  >
+                    <div className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${sendNotify ? 'translate-x-4' : ''}`} />
+                  </div>
+                  <span className="text-sm text-gray-700">E-mail értesítő küldése</span>
+                </label>
+                {sendNotify && (
+                  <div className="pl-1 space-y-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={notifyAll} onChange={() => setNotifyAll(true)} className="accent-indigo-500" />
+                      <span className="text-sm text-gray-700">Mindenki</span>
+                      <span className="text-xs text-gray-400">({allUsers.length} fő)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={!notifyAll} onChange={() => setNotifyAll(false)} className="accent-indigo-500" />
+                      <span className="text-sm text-gray-700">Kiválasztott személyek</span>
+                    </label>
+                    {!notifyAll && (
+                      <div className="ml-5 mt-1 max-h-36 overflow-y-auto space-y-1 border border-gray-100 rounded-xl p-2">
+                        {allUsers.map(u => (
+                          <label key={u.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                            <input type="checkbox" checked={selectedUserIds.has(u.id)} onChange={() => toggleUser(u.id)} className="accent-indigo-500" />
+                            <span className="text-sm text-gray-700">{userNameMap[u.id] || u.email}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+            {editingId && (
+              <p className="text-xs text-gray-400 border-t border-gray-100 pt-3">
+                Szerkesztéskor nem megy ki e-mail értesítő.
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
-              <button onClick={() => { setShowForm(false); setForm({ version: '', title: '', content: '' }) }}
+              <button onClick={closeForm}
                 className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Mégse</button>
-              <button onClick={handleSave} disabled={saving}
+              <button onClick={handleSave} disabled={saving || (!editingId && sendNotify && !notifyAll && selectedUserIds.size === 0)}
                 className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
                 style={{ background: '#6C5CE7' }}>
-                {saving ? 'Mentés...' : 'Közzétesz'}
+                {saving ? 'Mentés...' : editingId ? 'Mentés' : 'Közzétesz'}
               </button>
             </div>
           </div>
@@ -182,10 +292,18 @@ export default function ChangelogPage() {
                   {entry.authorName && <p className="text-xs text-gray-500">{entry.authorName}</p>}
                 </div>
                 {isAdmin && (
-                  <button onClick={() => setDeleteId(entry.id)}
-                    className="text-gray-300 hover:text-red-400 transition-colors p-1">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button onClick={() => startEdit(entry)}
+                      title="Szerkesztés"
+                      className="text-gray-300 hover:text-indigo-500 transition-colors p-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
+                    </button>
+                    <button onClick={() => setDeleteId(entry.id)}
+                      title="Törlés"
+                      className="text-gray-300 hover:text-red-400 transition-colors p-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
                 )}
               </div>
             </div>
