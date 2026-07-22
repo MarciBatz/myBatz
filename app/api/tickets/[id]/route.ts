@@ -52,7 +52,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       ticket.comments = ticket.comments.filter((c: { isInternal: boolean }) => !c.isInternal)
     }
 
-    return NextResponse.json({ ticket })
+    // Whether the current assignee tracks this ticket on their private board.
+    // Deliberately an aggregate: the newest timestamp and nothing else, never
+    // the tasks themselves. Tied to the *current* assignee, so a link made by a
+    // previous assignee stops being shown once the ticket moves on.
+    let privateWork: { ownerName: string; lastUpdatedAt: Date } | null = null
+    if (ticket.assigneeId) {
+      const newest = await prisma.privateTask.findFirst({
+        where: { ticketId: ticket.id, userId: ticket.assigneeId },
+        select: { updatedAt: true },
+        orderBy: { updatedAt: 'desc' },
+      })
+      if (newest && ticket.assignee) {
+        const a = ticket.assignee
+        privateWork = {
+          ownerName: a.nickname || a.firstName || a.name || a.email,
+          lastUpdatedAt: newest.updatedAt,
+        }
+      }
+    }
+
+    return NextResponse.json({ ticket, privateWork })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return unauthorizedResponse()

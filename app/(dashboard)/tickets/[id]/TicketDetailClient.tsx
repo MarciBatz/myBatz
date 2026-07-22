@@ -33,6 +33,8 @@ interface Ticket {
 export default function TicketDetailClient({ ticketId, user }: { ticketId: string; user: User }) {
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
+  // Only ever an owner name and a timestamp — never the private tasks themselves.
+  const [privateWork, setPrivateWork] = useState<{ ownerName: string; lastUpdatedAt: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string }[]>([])
@@ -55,6 +57,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     const r = await fetch(`/api/tickets/${ticketId}`)
     const d = await r.json()
     setTicket(d.ticket)
+    setPrivateWork(d.privateWork ?? null)
     setLoading(false)
   }, [ticketId])
 
@@ -184,6 +187,21 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
               <div className="mt-4 pt-4 border-t border-gray-100">
                 <p className="text-xs font-medium text-gray-500 mb-1">Csatolmányok</p>
                 <AttachmentList attachments={ticket.attachments} />
+              </div>
+            )}
+            {privateWork && (
+              <div className="mt-4 pt-3 border-t border-gray-100 flex items-start gap-2">
+                <svg className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <p className="text-xs text-gray-500 leading-relaxed">
+                  <span className="font-medium text-gray-600">{privateWork.ownerName}</span> privát
+                  feladatmenedzsmenten belül foglalkozik ezzel a feladattal.
+                  {' '}Utolsó frissítés: <span className="font-medium text-gray-600">{formatDateTime(privateWork.lastUpdatedAt)}</span>
+                  {privateWork.ownerName && user.id === ticket.assignee?.id && (
+                    <> · <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link></>
+                  )}
+                </p>
               </div>
             )}
           </div>

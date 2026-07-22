@@ -58,6 +58,7 @@ model User {
   officeWeeks     OfficeWeek[]
   vacations       Vacation[]
   ticketDrafts    TicketDraft[]
+  privateTasks    PrivateTask[]
   preferences     UserPreferences?
   permissions     UserPermissions?
 }
@@ -104,6 +105,7 @@ model Ticket {
   attachments Attachment[]
   activities  ActivityLog[]
   notifications NotificationLog[]
+  privateTasks PrivateTask[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 }
@@ -200,6 +202,35 @@ model OfficeWeek {
   updatedAt      DateTime @updatedAt
 
   @@unique([weekStart])
+}
+
+enum PrivateTaskColumn {
+  TODO
+  IN_PROGRESS
+  BLOCKED
+  DONE
+}
+
+/// A user's own task board. Only the owner may ever read these rows through the
+/// API — see lib/private-tasks.ts. When linked to a ticket, the only thing that
+/// leaks publicly is the newest updatedAt among the linked rows.
+model PrivateTask {
+  id          String            @id @default(cuid())
+  userId      String
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title       String
+  description String?           @db.Text
+  column      PrivateTaskColumn @default(TODO)
+  priority    Priority          @default(MEDIUM)
+  dueDate     DateTime?
+  position    Int               @default(0)
+  ticketId    String?
+  ticket      Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  @@index([userId, column])
+  @@index([ticketId])
 }
 
 model UserPreferences {
