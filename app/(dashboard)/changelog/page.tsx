@@ -35,6 +35,13 @@ export default function ChangelogPage() {
   const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set())
   const [notifyResult, setNotifyResult] = useState<{ notified: number; failed: number } | null>(null)
 
+  // Resend panel for an existing entry — separate from the create form's own
+  // notify block above, since this fires without creating a new entry.
+  const [resendEntryId, setResendEntryId] = useState<string | null>(null)
+  const [resendMode, setResendMode] = useState<'all' | 'selected' | 'exclude'>('exclude')
+  const [resendUserIds, setResendUserIds] = useState<Set<string>>(new Set())
+  const [resending, setResending] = useState(false)
+
   const userNameMap = buildUniqueDisplayNames(allUsers)
 
   useEffect(() => {
@@ -113,6 +120,47 @@ export default function ChangelogPage() {
     setSaving(false)
     closeForm()
     loadEntries()
+  }
+
+  function toggleResendUser(id: string) {
+    setResendUserIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  function openResend(entryId: string) {
+    setResendEntryId(entryId)
+    setResendMode('exclude')
+    setResendUserIds(new Set())
+  }
+
+  function closeResend() {
+    setResendEntryId(null)
+    setResendUserIds(new Set())
+  }
+
+  async function handleResend() {
+    if (!resendEntryId) return
+    if (resendMode !== 'all' && resendUserIds.size === 0) return
+    setResending(true)
+    const res = await fetch(`/api/changelog/${resendEntryId}/notify`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: resendMode, userIds: Array.from(resendUserIds) }),
+    })
+    setResending(false)
+    if (res.ok) {
+      const d = await res.json()
+      setNotifyResult({ notified: d.notified ?? 0, failed: d.failed ?? 0 })
+      closeResend()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setNotifyResult({ notified: 0, failed: 0 })
+      alert(d.error || 'Nem sikerült elküldeni az értesítőt')
+    }
   }
 
   async function handleDelete(id: string) {
@@ -314,6 +362,11 @@ export default function ChangelogPage() {
                 </div>
                 {isAdmin && (
                   <div className="flex items-center gap-1">
+                    <button onClick={() => openResend(entry.id)}
+                      title="E-mail (újra)küldése"
+                      className="text-gray-300 hover:text-indigo-500 transition-colors p-1">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" /></svg>
+                    </button>
                     <button onClick={() => startEdit(entry)}
                       title="Szerkesztés"
                       className="text-gray-300 hover:text-indigo-500 transition-colors p-1">
@@ -334,6 +387,63 @@ export default function ChangelogPage() {
           </div>
         ))}
       </div>
+
+      {/* Resend panel */}
+      {resendEntryId && (() => {
+        const entry = entries.find(e => e.id === resendEntryId)
+        if (!entry) return null
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={closeResend}>
+            <div className="bg-white rounded-xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+              <div className="px-5 py-4 border-b border-gray-100">
+                <h3 className="font-semibold text-gray-900">E-mail küldése</h3>
+                <p className="text-xs text-gray-500 mt-0.5">{entry.version} — {entry.title}</p>
+              </div>
+              <div className="p-5 space-y-2">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={resendMode === 'exclude'} onChange={() => setResendMode('exclude')} className="accent-indigo-500" />
+                  <span className="text-sm text-gray-700">Mindenki, kivéve a kiválasztottakat</span>
+                </label>
+                <p className="text-xs text-gray-400 pl-6">Jelöld be, akik már megkapták — ők nem kapnak új e-mailt, mindenki más igen.</p>
+                <label className="flex items-center gap-2 cursor-pointer pt-1">
+                  <input type="radio" checked={resendMode === 'selected'} onChange={() => setResendMode('selected')} className="accent-indigo-500" />
+                  <span className="text-sm text-gray-700">Csak a kiválasztottak</span>
+                </label>
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" checked={resendMode === 'all'} onChange={() => setResendMode('all')} className="accent-indigo-500" />
+                  <span className="text-sm text-gray-700">Mindenki</span>
+                  <span className="text-xs text-gray-400">({allUsers.length} fő)</span>
+                </label>
+
+                {resendMode !== 'all' && (
+                  <div className="mt-1 max-h-48 overflow-y-auto space-y-1 border border-gray-100 rounded-xl p-2">
+                    {allUsers.map(u => (
+                      <label key={u.id} className="flex items-center gap-2 cursor-pointer py-0.5">
+                        <input type="checkbox" checked={resendUserIds.has(u.id)} onChange={() => toggleResendUser(u.id)} className="accent-indigo-500" />
+                        <span className="text-sm text-gray-700">{userNameMap[u.id] || u.email}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+
+                {resendMode === 'exclude' && (
+                  <p className="text-xs text-gray-500 pt-1">
+                    Címzettek száma: {Math.max(0, allUsers.length - resendUserIds.size)} fő.
+                  </p>
+                )}
+              </div>
+              <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+                <button onClick={closeResend} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Mégse</button>
+                <button onClick={handleResend} disabled={resending || (resendMode !== 'all' && resendUserIds.size === 0)}
+                  className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-50"
+                  style={{ background: '#6C5CE7' }}>
+                  {resending ? 'Küldés...' : 'Küldés'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )
+      })()}
 
       {/* Delete confirm */}
       {deleteId && (
