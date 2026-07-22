@@ -17,6 +17,7 @@ interface NotifyUser {
   id: string
   name: string | null
   firstName?: string | null
+  lastName?: string | null
   nickname?: string | null
   email: string
 }

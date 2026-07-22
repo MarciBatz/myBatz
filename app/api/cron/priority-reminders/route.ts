@@ -19,8 +19,8 @@ export async function GET(_request: NextRequest) {
     const tickets = await prisma.ticket.findMany({
       where: { status: { not: 'CLOSED' } },
       include: {
-        assignee: { select: { id: true, email: true, name: true, firstName: true, nickname: true } },
-        createdBy: { select: { id: true, email: true, name: true, firstName: true, nickname: true } },
+        assignee: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true } },
+        createdBy: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true } },
         // Commenting doesn't touch ticket.updatedAt, so the newest comment is
         // checked separately when working out when the ticket last moved.
         comments: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },

@@ -17,16 +17,16 @@ export async function GET(request: NextRequest) {
     }),
     prisma.officeWeek.findFirst({
       where: { weekStart: { lte: todayEnd }, AND: { weekStart: { gte: new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000) } } },
-      include: { assignedUser: { select: { id: true, name: true, firstName: true, nickname: true } } },
+      include: { assignedUser: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true } } },
       orderBy: { weekStart: 'desc' },
     }),
     prisma.calendarEvent.findMany({
       where: { date: { gte: todayStart, lte: todayEnd } },
-      include: { createdBy: { select: { id: true, name: true, firstName: true, nickname: true } } },
+      include: { createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true } } },
     }),
     prisma.vacation.findMany({
       where: { startDate: { lte: todayEnd }, endDate: { gte: todayStart } },
-      include: { user: { select: { id: true, name: true, firstName: true, nickname: true } } },
+      include: { user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true } } },
     }),
   ])
 

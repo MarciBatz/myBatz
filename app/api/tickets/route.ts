@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireSession, requireReadWrite, unauthorizedResponse } from '@/lib/auth'
 import { sendNewTicketEmail } from '@/lib/email'
-import { displayName } from '@/lib/utils'
+import { fullDisplayName } from '@/lib/utils'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -53,8 +53,8 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           category: true,
-          assignee: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
-          createdBy: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+          assignee: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
+          createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
           _count: { select: { comments: true } },
         },
         orderBy: [{ pinned: 'desc' }, { updatedAt: 'desc' }],
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    const creatorName = displayName(user)
+    const creatorName = fullDisplayName(user)
 
     let notifyUsers: { id: string; email: string; name: string | null; nickname: string | null; firstName: string | null }[]
     if (ticket.assignee) {
@@ -124,7 +124,7 @@ export async function POST(request: NextRequest) {
     } else {
       notifyUsers = await prisma.user.findMany({
         where: { role: { in: ['ADMIN', 'AGENT'] }, status: 'ACTIVE', NOT: { id: user.id } },
-        select: { id: true, email: true, name: true, nickname: true, firstName: true },
+        select: { id: true, email: true, name: true, nickname: true, firstName: true, lastName: true },
       })
     }
 

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { fullDisplayName, displayName } from '@/lib/utils'
+import { fullDisplayName } from '@/lib/utils'
 
 const adminNavItems = [
   {
@@ -227,7 +227,7 @@ export default function Sidebar({ user }: SidebarProps) {
             {user.avatarUrl ? (
               <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" />
             ) : (
-              (displayName(user) || user.email)[0].toUpperCase()
+              (fullDisplayName(user) || user.email)[0].toUpperCase()
             )}
           </div>
           <div className="flex-1 min-w-0">

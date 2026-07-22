@@ -14,7 +14,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { id } = await params
   const week = await prisma.officeWeek.findUnique({
     where: { id },
-    include: { assignedUser: { select: { email: true, name: true, firstName: true, nickname: true } } },
+    include: { assignedUser: { select: { email: true, name: true, firstName: true, lastName: true, nickname: true } } },
   })
 
   if (!week?.assignedUser) return NextResponse.json({ error: 'Nincs hozzárendelt felhasználó' }, { status: 400 })

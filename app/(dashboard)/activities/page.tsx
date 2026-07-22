@@ -4,17 +4,17 @@ import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import Link from 'next/link'
-import { formatDateTime } from '@/lib/utils'
+import { formatDateTime, fullDisplayName } from '@/lib/utils'
 
 interface Activity {
   id: string; action: string; oldValue: string | null; newValue: string | null; createdAt: string
-  user: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
+  user: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
   ticket: { id: string; title: string }
 }
 
 interface AuditEntry {
   id: string; action: string; detail: string | null; ip: string | null; createdAt: string
-  user: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
+  user: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
 }
 
 type FeedItem =
@@ -44,9 +44,9 @@ const AUDIT_LABELS: Record<string, { label: string; color: string }> = {
   private_task_commented: { label: 'Privát feladat: megjegyzés', color: 'bg-violet-100 text-violet-700' },
 }
 
-function userName(u: { name: string | null; firstName?: string | null; nickname?: string | null; email: string } | null) {
+function userName(u: { name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string } | null) {
   if (!u) return 'Törölt felhasználó'
-  return u.nickname || u.firstName || u.name || u.email
+  return fullDisplayName(u) || u.email
 }
 
 export default function LogPage() {
@@ -54,7 +54,7 @@ export default function LogPage() {
   const [allowed, setAllowed] = useState<boolean | null>(null)
   const [items, setItems] = useState<FeedItem[]>([])
   const [loading, setLoading] = useState(true)
-  const [users, setUsers] = useState<{ id: string; name: string | null; email: string }[]>([])
+  const [users, setUsers] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
   const [userId, setUserId] = useState('')
   const [kindFilter, setKindFilter] = useState<'all' | 'activity' | 'audit'>('all')
 
@@ -114,7 +114,7 @@ export default function LogPage() {
         <select value={userId} onChange={e => setUserId(e.target.value)}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
           <option value="">Minden felhasználó</option>
-          {users.map(u => <option key={u.id} value={u.id}>{u.name || u.email}</option>)}
+          {users.map(u => <option key={u.id} value={u.id}>{fullDisplayName(u) || u.email}</option>)}
         </select>
         <select value={kindFilter} onChange={e => setKindFilter(e.target.value as 'all' | 'activity' | 'audit')}
           className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
@@ -136,7 +136,7 @@ export default function LogPage() {
           <div className="divide-y divide-gray-50">
             {items.map(item => item.kind === 'activity' ? (
               <div key={`a-${item.data.id}`} className="flex items-start gap-4 px-5 py-4">
-                <Avatar name={item.data.user?.name ?? null} firstName={item.data.user?.firstName} nickname={item.data.user?.nickname} email={item.data.user?.email ?? ''} avatarUrl={item.data.user?.avatarUrl} />
+                <Avatar name={item.data.user?.name ?? null} firstName={item.data.user?.firstName} lastName={item.data.user?.lastName} nickname={item.data.user?.nickname} email={item.data.user?.email ?? ''} avatarUrl={item.data.user?.avatarUrl} />
                 <div className="flex-1 min-w-0">
                   <p className="text-sm text-gray-700">
                     <span className="font-medium">{userName(item.data.user)}</span>{' '}
@@ -154,7 +154,7 @@ export default function LogPage() {
             ) : (
               <div key={`u-${item.data.id}`} className="flex items-start gap-4 px-5 py-4">
                 {item.data.user ? (
-                  <Avatar name={item.data.user.name} firstName={item.data.user.firstName} nickname={item.data.user.nickname} email={item.data.user.email} avatarUrl={item.data.user.avatarUrl} />
+                  <Avatar name={item.data.user.name} firstName={item.data.user.firstName} lastName={item.data.user.lastName} nickname={item.data.user.nickname} email={item.data.user.email} avatarUrl={item.data.user.avatarUrl} />
                 ) : (
                   <div className="w-7 h-7 rounded-full bg-gray-200 flex items-center justify-center text-gray-400 text-xs flex-shrink-0">?</div>
                 )}

@@ -5,15 +5,15 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
+import { formatRelativeTime, formatDate, displayName, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import FileUpload, { type UploadedFile } from '@/components/FileUpload'
 
 interface TodayData {
   shifts: { id: string; title: string; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
-  officeWeek: { assignedUser: { id: string; name: string | null; firstName: string | null; nickname: string | null } | null } | null
-  events: { id: string; title: string; createdBy: { name: string | null; firstName: string | null; nickname: string | null } }[]
-  vacations: { id: string; note: string | null; user: { id: string; name: string | null; firstName: string | null; nickname: string | null } }[]
+  officeWeek: { assignedUser: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } | null } | null
+  events: { id: string; title: string; createdBy: { name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
+  vacations: { id: string; note: string | null; user: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
 }
 
 interface Stats { open: number; inProgress: number; awaiting: number; closed: number }
@@ -21,8 +21,8 @@ interface Ticket {
   id: string; title: string; description: string; status: string; priority: string
   createdAt: string; updatedAt: string; pinned: boolean
   category?: { id: string; name: string } | null
-  assignee?: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
-  createdBy: { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
+  assignee?: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
+  createdBy: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
   _count: { comments: number }
 }
 interface User { id: string; name: string | null; lastName?: string | null; firstName?: string | null; nickname?: string | null; email: string; role: string }
@@ -37,7 +37,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [agents, setAgents] = useState<{ id: string; name: string | null; email: string }[]>([])
+  const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
 
   // Filters
   const [showClosed, setShowClosed] = useState(true)
@@ -198,13 +198,13 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 
         if (todayData.officeWeek?.assignedUser) {
           const u = todayData.officeWeek.assignedUser
-          const name = u.nickname || u.firstName || u.name || '?'
+          const name = fullDisplayName(u) || '?'
           chips.push({ key: 'office', label: `🧹 Irodai hetes: ${name}`, color: '#92400e', bg: '#fffbeb' })
         }
 
         todayData.vacations.forEach(v => {
           const u = v.user
-          const name = u.nickname || u.firstName || u.name || '?'
+          const name = fullDisplayName(u) || '?'
           chips.push({ key: v.id, label: `🏖 Szabadság: ${name}`, color: '#0369a1', bg: '#f0f9ff' })
         })
 
@@ -324,7 +324,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                       <td className="px-5 py-4">
                         <Link href={`/tickets/${ticket.id}`} className="group">
                           <div className="flex items-start gap-3">
-                            <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
+                            <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} lastName={ticket.createdBy.lastName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 {ticket.pinned && <span className="text-amber-500 text-xs font-semibold">★ Kiemelt</span>}
@@ -347,8 +347,8 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                       <td className="px-4 py-4">
                         {ticket.assignee ? (
                           <div className="flex items-center gap-2">
-                            <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
-                            <span className="text-xs text-gray-600 truncate max-w-24">{agentNameMap[ticket.assignee.id] || displayName(ticket.assignee) || ticket.assignee.email}</span>
+                            <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} lastName={ticket.assignee.lastName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
+                            <span className="text-xs text-gray-600 truncate max-w-24">{agentNameMap[ticket.assignee.id] || fullDisplayName(ticket.assignee) || ticket.assignee.email}</span>
                           </div>
                         ) : <span className="text-gray-300 text-xs">Nincs hozzárendelve</span>}
                       </td>
@@ -368,7 +368,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                             </button>
                             {ticket.assignee && ticket.assignee.id !== user.id && (
                               <button
-                                onClick={() => { const a = ticket.assignee!; setNudgeTarget({ ticketId: ticket.id, ticketTitle: ticket.title, assigneeName: agentNameMap[a.id] || displayName(a) || a.email }) }}
+                                onClick={() => { const a = ticket.assignee!; setNudgeTarget({ ticketId: ticket.id, ticketTitle: ticket.title, assigneeName: agentNameMap[a.id] || fullDisplayName(a) || a.email }) }}
                                 title="Emlékeztető küldése a felelősnek"
                                 className="p-1.5 rounded-lg text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors">
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">

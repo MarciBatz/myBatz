@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
 
   const vacation = await prisma.vacation.create({
     data: { userId: targetUserId, startDate: new Date(startDate), endDate: new Date(endDate), note: note || null },
-    include: { user: { select: { id: true, name: true, firstName: true, nickname: true, email: true } } },
+    include: { user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true } } },
   })
 
   return NextResponse.json({ vacation }, { status: 201 })

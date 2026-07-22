@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from 'react'
 import Avatar from '@/components/Avatar'
-import { formatDate, displayName, buildUniqueDisplayNames } from '@/lib/utils'
+import { formatDate, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
 
 interface AgentUser {
-  id: string; email: string; name: string | null; firstName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
+  id: string; email: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
 }
 
 interface UserSettings {
@@ -311,7 +311,7 @@ export default function AgentsPage() {
                 <tr key={u.id} className="hover:bg-gray-50/50">
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-3">
-                      <Avatar name={u.name} firstName={u.firstName} nickname={u.nickname} email={u.email} avatarUrl={u.avatarUrl} size="md" online={isOnline(u.lastSeenAt)} />
+                      <Avatar name={u.name} firstName={u.firstName} lastName={u.lastName} nickname={u.nickname} email={u.email} avatarUrl={u.avatarUrl} size="md" online={isOnline(u.lastSeenAt)} />
                       <div>
                         <p className="text-sm font-medium text-gray-900">{nameMap[u.id] || '—'}</p>
                         <p className="text-xs text-gray-400">{u.email}</p>
@@ -479,7 +479,7 @@ export default function AgentsPage() {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-6">
-              Biztosan törlöd <strong>{deleteTarget.name || deleteTarget.email}</strong> fiókját? A felhasználó összes adata törlődik.
+              Biztosan törlöd <strong>{fullDisplayName(deleteTarget) || deleteTarget.email}</strong> fiókját? A felhasználó összes adata törlődik.
             </p>
             <div className="flex justify-end gap-3">
               <button onClick={() => setDeleteTarget(null)}
@@ -542,7 +542,7 @@ export default function AgentsPage() {
             <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
               <div>
                 <h2 className="text-lg font-semibold text-gray-900">Beállítások</h2>
-                <p className="text-sm text-gray-400">{settingsTarget.name || settingsTarget.email}</p>
+                <p className="text-sm text-gray-400">{fullDisplayName(settingsTarget) || settingsTarget.email}</p>
               </div>
               <button onClick={() => setSettingsTarget(null)} className="text-gray-400 hover:text-gray-600">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

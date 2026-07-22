@@ -12,16 +12,22 @@ export function fullDisplayName(user: { nickname?: string | null; lastName?: str
   return user.email?.split('@')[0] || ''
 }
 
-type NameableUser = { id: string; nickname?: string | null; firstName?: string | null; name?: string | null; email?: string }
+type NameableUser = { id: string; nickname?: string | null; lastName?: string | null; firstName?: string | null; name?: string | null; email?: string }
 
+/**
+ * Names for a list of people, disambiguated. Built on fullDisplayName, so the
+ * usual result is already the full name; this only matters when two people
+ * share a nickname, where it falls back to the full name for both.
+ */
 export function buildUniqueDisplayNames(users: NameableUser[]): Record<string, string> {
-  const preferred = new Map(users.map(u => [u.id, displayName(u)]))
+  const preferred = new Map(users.map(u => [u.id, fullDisplayName(u)]))
   const counts = new Map<string, number>()
   preferred.forEach(n => counts.set(n, (counts.get(n) || 0) + 1))
   const result: Record<string, string> = {}
   users.forEach(u => {
     const pref = preferred.get(u.id)!
-    result[u.id] = (counts.get(pref)! > 1) ? (u.name || u.email?.split('@')[0] || '') : pref
+    const fallback = (u.lastName && u.firstName) ? `${u.lastName} ${u.firstName}` : (u.name || u.email?.split('@')[0] || '')
+    result[u.id] = (counts.get(pref)! > 1) ? fallback : pref
   })
   return result
 }

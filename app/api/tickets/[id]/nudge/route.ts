@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireReadWrite, unauthorizedResponse } from '@/lib/auth'
-import { displayName } from '@/lib/utils'
+import { fullDisplayName } from '@/lib/utils'
 import { sendNudgeEmail } from '@/lib/email'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -20,9 +20,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (!ticket.assignee) return NextResponse.json({ error: 'A ticketnek nincs felelőse' }, { status: 400 })
     if (ticket.assignee.id === user.id) return NextResponse.json({ error: 'Saját magadnak nem küldhetsz emlékeztetőt' }, { status: 400 })
 
-    await sendNudgeEmail(ticket.assignee, { id, title: ticket.title }, displayName(user))
+    await sendNudgeEmail(ticket.assignee, { id, title: ticket.title }, fullDisplayName(user))
 
-    const assigneeName = displayName(ticket.assignee)
+    const assigneeName = fullDisplayName(ticket.assignee)
 
     await prisma.activityLog.create({
       data: {
@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         userId: ticket.assignee.id,
         ticketId: id,
         type: 'nudge',
-        message: `${displayName(user)} jelezte, hogy foglalkozni kell ezzel: "${ticket.title}"`,
+        message: `${fullDisplayName(user)} jelezte, hogy foglalkozni kell ezzel: "${ticket.title}"`,
         link: `/tickets/${id}`,
       },
     })

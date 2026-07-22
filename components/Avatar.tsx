@@ -1,6 +1,9 @@
+import { fullDisplayName } from '@/lib/utils'
+
 interface AvatarProps {
   name?: string | null
   firstName?: string | null
+  lastName?: string | null
   nickname?: string | null
   email?: string
   avatarUrl?: string | null
@@ -8,9 +11,11 @@ interface AvatarProps {
   online?: boolean
 }
 
-export default function Avatar({ name, firstName, nickname, email, avatarUrl, size = 'sm', online }: AvatarProps) {
+export default function Avatar({ name, firstName, lastName, nickname, email, avatarUrl, size = 'sm', online }: AvatarProps) {
   const dim = size === 'sm' ? 'w-7 h-7 text-xs' : 'w-9 h-9 text-sm'
-  const initialSource = nickname || firstName || name || email || '?'
+  // Derived from the same name the UI prints, so the initial always matches the
+  // label next to it — with full names shown, a first-name initial wouldn't.
+  const initialSource = fullDisplayName({ name, firstName, lastName, nickname, email }) || email || '?'
   const initial = initialSource[0].toUpperCase()
 
   return (

@@ -20,13 +20,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existing = await prisma.user.findUnique({
       where: { id },
-      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true, status: true },
+      select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true, role: true, status: true },
     })
 
     const user = await prisma.user.update({
       where: { id },
       data,
-      select: { id: true, email: true, name: true, firstName: true, nickname: true, role: true, status: true, avatarUrl: true },
+      select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true, role: true, status: true, avatarUrl: true },
     })
 
     if (existing && data.role && data.role !== existing.role) {

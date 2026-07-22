@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
 
   const user = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { firstName: true, nickname: true, name: true },
+    select: { firstName: true, lastName: true, nickname: true, name: true },
   })
   const authorName = user?.nickname || user?.firstName || user?.name || 'Admin'
 
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   if (Array.isArray(notifyUserIds) && notifyUserIds.length > 0) {
     const recipients = await prisma.user.findMany({
       where: { id: { in: notifyUserIds }, status: 'ACTIVE' },
-      select: { email: true, name: true, firstName: true, nickname: true },
+      select: { email: true, name: true, firstName: true, lastName: true, nickname: true },
     })
     const result = await sendChangelogEmails(recipients, { version, title, content }, authorName)
     notified = result.sent

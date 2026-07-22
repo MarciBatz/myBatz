@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useMemo } from 'react'
-import { buildUniqueDisplayNames } from '@/lib/utils'
+import { buildUniqueDisplayNames, fullDisplayName } from '@/lib/utils'
 
 interface ShiftDay {
   id: string; date: string; timeStart: string | null; timeEnd: string | null
@@ -21,7 +21,7 @@ interface OfficeWeek {
 interface SimpleUser { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null }
 interface Vacation {
   id: string; startDate: string; endDate: string; note: string | null
-  user: { id: string; name: string | null; firstName: string | null; nickname: string | null; email: string }
+  user: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null; email: string }
 }
 
 type DayItem =
@@ -48,7 +48,7 @@ function getMonday(date: Date): Date {
 }
 function isWeekday(date: Date) { const d = date.getUTCDay(); return d >= 1 && d <= 5 }
 function uName(u: SimpleUser | OfficeWeek['assignedUser'] | Vacation['user'] | null): string {
-  if (!u) return '—'; return (u as SimpleUser).nickname || (u as SimpleUser).firstName || u.name || '—'
+  if (!u) return '—'; return fullDisplayName(u) || '—'
 }
 
 export default function ShiftsPage() {
@@ -390,7 +390,7 @@ function ShiftDetail({ shift }: { shift: ShiftDay }) {
 }
 
 function EventDetail({ event, onDelete }: { event: CalendarEvent; onDelete: () => void }) {
-  const creatorName = event.createdBy ? event.createdBy.nickname || event.createdBy.firstName || event.createdBy.name || event.createdBy.email : null
+  const creatorName = event.createdBy ? (fullDisplayName(event.createdBy) || event.createdBy.email) : null
   return (
     <div className="space-y-3 text-sm">
       <div><p className="text-xs text-gray-400 mb-0.5">Dátum</p><p className="font-medium text-gray-900">{new Date(event.date).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}</p></div>
@@ -412,7 +412,7 @@ function VacationDetail({ vacation, canDelete, onDelete }: { vacation: Vacation;
         <span className="text-lg">🏖</span>
         <span className="font-medium text-gray-900">Szabadság</span>
       </div>
-      <div><p className="text-xs text-gray-400 mb-0.5">Kolléga</p><p className="font-medium text-sky-600">{vacation.user.nickname || vacation.user.firstName || vacation.user.name || vacation.user.email}</p></div>
+      <div><p className="text-xs text-gray-400 mb-0.5">Kolléga</p><p className="font-medium text-sky-600">{fullDisplayName(vacation.user) || vacation.user.email}</p></div>
       <div><p className="text-xs text-gray-400 mb-0.5">Időszak</p>
         <p className="text-gray-900">{start.toLocaleDateString('hu-HU', { month: 'long', day: 'numeric' })} – {end.toLocaleDateString('hu-HU', { month: 'long', day: 'numeric' })}</p>
         <p className="text-xs text-gray-400 mt-0.5">{days} nap</p>
@@ -460,7 +460,7 @@ function OfficeWeekDetail({ week, allUsers, isAdmin, onChanged }: { week: Office
           <div className="space-y-2">
             <select value={selectedUserId} onChange={e => setSelectedUserId(e.target.value)}
               className="w-full border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-300">
-              {allUsers.map(u => <option key={u.id} value={u.id}>{u.nickname || u.firstName || u.name || u.id}</option>)}
+              {allUsers.map(u => <option key={u.id} value={u.id}>{fullDisplayName(u) || u.id}</option>)}
             </select>
             <div className="flex gap-2">
               <button onClick={() => setEditing(false)} className="flex-1 py-1.5 text-xs text-gray-600 border border-gray-200 rounded-lg hover:bg-gray-50">Mégse</button>
@@ -469,7 +469,7 @@ function OfficeWeekDetail({ week, allUsers, isAdmin, onChanged }: { week: Office
           </div>
         ) : (
           <div className="flex items-center justify-between">
-            <p className="font-medium text-gray-900 text-base">🧹 {week.assignedUser ? (week.assignedUser.nickname || week.assignedUser.firstName || week.assignedUser.name || week.assignedUser.email) : '—'}</p>
+            <p className="font-medium text-gray-900 text-base">🧹 {week.assignedUser ? (fullDisplayName(week.assignedUser) || week.assignedUser.email) : '—'}</p>
             {isAdmin && <button onClick={() => setEditing(true)} className="text-xs text-orange-500 hover:text-orange-700 px-2 py-1 rounded-lg hover:bg-orange-50 transition-all">Módosítás</button>}
           </div>
         )}

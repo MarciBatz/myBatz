@@ -10,7 +10,7 @@ export async function GET(_request: NextRequest) {
     where: { weekStart: thisMonday },
     include: {
       assignedUser: {
-        select: { email: true, name: true, firstName: true, nickname: true },
+        select: { email: true, name: true, firstName: true, lastName: true, nickname: true },
       },
     },
   })

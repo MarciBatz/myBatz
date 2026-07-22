@@ -24,11 +24,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       include: {
         category: true,
-        assignee: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
-        createdBy: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+        assignee: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
+        createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
         comments: {
           include: {
-            user: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+            user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
             attachments: true,
           },
           orderBy: { createdAt: 'asc' },
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         attachments: true,
         activities: {
           include: {
-            user: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+            user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
           },
           orderBy: { createdAt: 'desc' },
         },

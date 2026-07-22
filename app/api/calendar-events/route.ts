@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   const events = await prisma.calendarEvent.findMany({
     where,
-    include: { createdBy: { select: { firstName: true, name: true, nickname: true, email: true } } },
+    include: { createdBy: { select: { firstName: true, lastName: true, name: true, nickname: true, email: true } } },
     orderBy: { date: 'asc' },
   })
 
@@ -53,13 +53,13 @@ export async function POST(request: NextRequest) {
   if (Array.isArray(notifyUserIds) && notifyUserIds.length > 0) {
     const sender = await prisma.user.findUnique({
       where: { id: session.id },
-      select: { name: true, firstName: true, nickname: true },
+      select: { name: true, firstName: true, lastName: true, nickname: true },
     })
     const senderName = sender?.nickname || sender?.firstName || sender?.name || 'Valaki'
 
     const recipients = await prisma.user.findMany({
       where: { id: { in: notifyUserIds }, status: 'ACTIVE' },
-      select: { id: true, email: true, name: true, firstName: true, nickname: true },
+      select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true },
     })
 
     await Promise.all(

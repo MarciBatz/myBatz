@@ -38,7 +38,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const recipients = await prisma.user.findMany({
     where,
-    select: { email: true, name: true, firstName: true, nickname: true },
+    select: { email: true, name: true, firstName: true, lastName: true, nickname: true },
   })
 
   if (recipients.length === 0) {
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
   const author = await prisma.user.findUnique({
     where: { id: session.id },
-    select: { firstName: true, nickname: true, name: true },
+    select: { firstName: true, lastName: true, nickname: true, name: true },
   })
   const senderName = author?.nickname || author?.firstName || author?.name || 'Admin'
 

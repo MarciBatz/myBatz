@@ -7,13 +7,13 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDateTime, displayName, buildUniqueDisplayNames } from '@/lib/utils'
+import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
 interface Attachment { id: string; fileUrl: string; fileName: string; fileSize: number; mimeType?: string | null }
-interface NamedUser { id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
+interface NamedUser { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
 interface Comment {
   id: string; body: string; isInternal: boolean; createdAt: string
   user: NamedUser
@@ -37,7 +37,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [privateWork, setPrivateWork] = useState<{ ownerName: string; lastUpdatedAt: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
-  const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; nickname?: string | null; email: string }[]>([])
+  const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
   const [comment, setComment] = useState('')
   const [isInternal, setIsInternal] = useState(false)
   const [commentAttachments, setCommentAttachments] = useState<{ fileUrl: string; fileName: string; fileSize: number; mimeType: string }[]>([])
@@ -174,11 +174,11 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
         <div className="flex-1 min-w-0">
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6 mb-4">
             <div className="flex items-start gap-3 mb-4">
-              <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} size="md" />
+              <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} lastName={ticket.createdBy.lastName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} size="md" />
               <div className="flex-1 min-w-0">
                 <h1 className="text-xl font-bold text-gray-900 mb-1">{ticket.title}</h1>
                 <p className="text-xs text-gray-400">
-                  Létrehozta: {displayName(ticket.createdBy) || ticket.createdBy.email} · {formatDateTime(ticket.createdAt)}
+                  Létrehozta: {fullDisplayName(ticket.createdBy) || ticket.createdBy.email} · {formatDateTime(ticket.createdAt)}
                 </p>
               </div>
             </div>
@@ -211,8 +211,8 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             {ticket.comments.map(c => (
               <div key={c.id} className={`rounded-xl border shadow-sm p-5 ${c.isInternal ? 'bg-amber-50 border-amber-200' : 'bg-white border-gray-100'}`}>
                 <div className="flex items-center gap-2 mb-3">
-                  <Avatar name={c.user.name} firstName={c.user.firstName} nickname={c.user.nickname} email={c.user.email} avatarUrl={c.user.avatarUrl} />
-                  <span className="text-sm font-medium text-gray-700">{displayName(c.user) || c.user.email}</span>
+                  <Avatar name={c.user.name} firstName={c.user.firstName} lastName={c.user.lastName} nickname={c.user.nickname} email={c.user.email} avatarUrl={c.user.avatarUrl} />
+                  <span className="text-sm font-medium text-gray-700">{fullDisplayName(c.user) || c.user.email}</span>
                   {c.isInternal && <span className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium">Belső megjegyzés</span>}
                   <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(c.createdAt)}</span>
                   {canDeleteComments && (
@@ -385,12 +385,12 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Felelős</label>
                 {user.role === 'READER' ? (
-                  <p className="text-sm text-gray-700 px-2 py-1.5">{ticket.assignee ? (displayName(ticket.assignee) || ticket.assignee.email) : '—'}</p>
+                  <p className="text-sm text-gray-700 px-2 py-1.5">{ticket.assignee ? (fullDisplayName(ticket.assignee) || ticket.assignee.email) : '—'}</p>
                 ) : (
                   <select value={ticket.assignee?.id || ''} onChange={e => updateField('assigneeId', e.target.value || null)}
                     className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
                     <option value="">Nincs hozzárendelve</option>
-                    {agents.map(a => <option key={a.id} value={a.id}>{displayName(a) || a.email}</option>)}
+                    {agents.map(a => <option key={a.id} value={a.id}>{fullDisplayName(a) || a.email}</option>)}
                   </select>
                 )}
               </div>
@@ -403,10 +403,10 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             <div className="space-y-3">
               {ticket.activities.slice(0, 10).map(a => (
                 <div key={a.id} className="flex gap-2.5">
-                  <Avatar name={a.user.name} firstName={a.user.firstName} nickname={a.user.nickname} email={a.user.email} />
+                  <Avatar name={a.user.name} firstName={a.user.firstName} lastName={a.user.lastName} nickname={a.user.nickname} email={a.user.email} />
                   <div className="flex-1 min-w-0">
                     <p className="text-xs text-gray-600">
-                      <span className="font-medium">{displayName(a.user) || a.user.email.split('@')[0]}</span>{' '}
+                      <span className="font-medium">{fullDisplayName(a.user) || a.user.email.split('@')[0]}</span>{' '}
                       {actionLabel(a)}
                     </p>
                     <p className="text-xs text-gray-400">{formatRelativeTime(a.createdAt)}</p>

@@ -18,7 +18,7 @@ export async function GET(request: NextRequest) {
       prisma.activityLog.findMany({
         where,
         include: {
-          user: { select: { id: true, name: true, firstName: true, nickname: true, email: true, avatarUrl: true } },
+          user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
           ticket: { select: { id: true, title: true } },
         },
         orderBy: { createdAt: 'desc' },

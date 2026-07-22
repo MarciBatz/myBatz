@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireReadWrite, unauthorizedResponse } from '@/lib/auth'
 import { sendNewCommentEmail } from '@/lib/email'
-import { displayName } from '@/lib/utils'
+import { fullDisplayName } from '@/lib/utils'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -78,7 +78,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
 
-    const authorName = displayName(user)
+    const authorName = fullDisplayName(user)
     const appUrl = process.env.APP_URL || 'http://localhost:3001'
     const ticketLink = `/tickets/${id}`
 
