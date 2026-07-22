@@ -1,12 +1,8 @@
 {
   "crons": [
     {
-      "path": "/api/cron/ticket-reminders",
+      "path": "/api/cron/priority-reminders",
       "schedule": "0 8 * * *"
-    },
-    {
-      "path": "/api/cron/sla-check",
-      "schedule": "0 9 * * *"
     },
     {
       "path": "/api/cron/sync-shifts",

@@ -207,36 +207,6 @@ export async function sendTicketUpdateEmail(
   }
 }
 
-export async function sendTicketReminderEmail(
-  user: { email: string; name?: string | null; nickname?: string | null },
-  ticket: { id: string; title: string; createdAt: Date },
-  days: number
-): Promise<void> {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000'
-  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
-  const greeting = user.nickname || user.name || 'Kedves Felhasználó'
-
-  await sendEmail({
-    to: user.email,
-    subject: `Emlékeztető: "${ticket.title}" – ${days} napja megoldatlan`,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #6C5CE7;">Emlékeztető – megoldatlan feladat</h2>
-        <p>Szia ${greeting},</p>
-        <p>Az alábbi feladat már <strong>${days} napja</strong> megoldatlan, és te vagy a felelőse:</p>
-        <div style="background:#fff8e1;border-left:4px solid #f39c12;padding:16px;border-radius:4px;margin:16px 0;">
-          <strong style="font-size:16px;">${ticket.title}</strong>
-          <p style="color:#888;font-size:13px;margin:6px 0 0;">Létrehozva: ${ticket.createdAt.toLocaleDateString('hu-HU')}</p>
-        </div>
-        <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Feladat megtekintése
-        </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
-      </div>
-    `,
-  })
-}
-
 export async function sendNudgeEmail(
   user: { email: string; name?: string | null; nickname?: string | null },
   ticket: { id: string; title: string },
@@ -258,43 +228,6 @@ export async function sendNudgeEmail(
           <strong style="font-size:16px;">${ticket.title}</strong>
         </div>
         <a href="${ticketUrl}" style="display:inline-block;background:#6C5CE7;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
-          Feladat megtekintése
-        </a>
-        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
-      </div>
-    `,
-  })
-}
-
-export async function sendSlaBreachEmail(
-  user: { email: string; name?: string | null; nickname?: string | null },
-  ticket: { id: string; title: string },
-  type: 'no_response' | 'unassigned'
-): Promise<void> {
-  const appUrl = process.env.APP_URL || 'http://localhost:3000'
-  const ticketUrl = `${appUrl}/tickets/${ticket.id}`
-  const greeting = user.nickname || user.name || 'Kedves Felhasználó'
-
-  const subject = type === 'no_response'
-    ? `48 órája nem reagáltál: "${ticket.title}"`
-    : `48 órája gazdátlan feladat: "${ticket.title}"`
-
-  const body = type === 'no_response'
-    ? `<p>Az alábbi feladatra <strong>48 órája nem reagáltál</strong>, pedig te vagy a felelőse. Kérjük, nézd meg és frissítsd az állapotát.</p>`
-    : `<p>Az alábbi feladatot <strong>48 órája senki sem vette fel magának</strong>. Kérjük, rendelj hozzá felelőst, vagy vállald el magad.</p>`
-
-  await sendEmail({
-    to: user.email,
-    subject,
-    html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2 style="color: #e17055;">Válaszidő figyelmeztetés</h2>
-        <p>Szia ${greeting},</p>
-        ${body}
-        <div style="background:#fff0f0;border-left:4px solid #e17055;padding:16px;border-radius:4px;margin:16px 0;">
-          <strong style="font-size:16px;">${ticket.title}</strong>
-        </div>
-        <a href="${ticketUrl}" style="display:inline-block;background:#e17055;color:#fff;padding:12px 24px;border-radius:8px;text-decoration:none;font-weight:bold;">
           Feladat megtekintése
         </a>
         <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
@@ -355,6 +288,65 @@ export async function sendCalendarEventNotificationEmail(
           <p style="color:#666;margin:0;">📅 ${dateLabel}</p>
           ${event.description ? `<p style="color:#444;margin:12px 0 0;">${event.description}</p>` : ''}
         </div>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
+      </div>
+    `,
+  })
+}
+
+const PRIORITY_LABELS: Record<string, string> = {
+  CRITICAL: 'Kritikus',
+  HIGH: 'Magas',
+  MEDIUM: 'Közepes',
+  LOW: 'Alacsony',
+}
+
+const PRIORITY_COLORS: Record<string, string> = {
+  CRITICAL: '#DC2626',
+  HIGH: '#EA580C',
+  MEDIUM: '#CA8A04',
+  LOW: '#16A34A',
+}
+
+function formatIdle(hours: number): string {
+  if (hours < 48) return `${hours} órája`
+  return `${Math.floor(hours / 24)} napja`
+}
+
+export async function sendPriorityReminderEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  ticket: { id: string; title: string; priority: string },
+  idleHours: number,
+  unassigned = false
+): Promise<void> {
+  const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const label = PRIORITY_LABELS[ticket.priority] || ticket.priority
+  const color = PRIORITY_COLORS[ticket.priority] || '#6C5CE7'
+  const idle = formatIdle(idleHours)
+
+  await sendEmail({
+    to: recipient.email,
+    subject: unassigned
+      ? `Felelős nélkül áll: ${ticket.title}`
+      : `Emlékeztető (${label}): ${ticket.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:${color};">⏰ Nyitott feladat emlékeztető</h2>
+        <p>Szia ${greeting},</p>
+        <p>${unassigned
+          ? `Ez a feladat <strong>${idle}</strong> nem mozdult, és még senki sincs hozzárendelve:`
+          : `Ez a feladat <strong>${idle}</strong> nem mozdult, és még nincs lezárva:`}</p>
+        <div style="background:#f9fafb;border-left:4px solid ${color};padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="margin:0 0 8px;">
+            <span style="display:inline-block;background:${color};color:#fff;font-size:12px;font-weight:bold;padding:2px 10px;border-radius:999px;">${label}</span>
+          </p>
+          <p style="font-size:18px;font-weight:bold;margin:0;">${ticket.title}</p>
+        </div>
+        <p><a href="${appUrl}/tickets/${ticket.id}" style="color:${color};font-weight:bold;">Feladat megnyitása →</a></p>
+        <p style="color:#666;font-size:13px;">${unassigned
+          ? 'Ha kijelölsz egy felelőst vagy hozzászólsz, az emlékeztető számlálója újraindul.'
+          : 'Ha lezárod vagy hozzászólsz, az emlékeztető számlálója újraindul.'}</p>
         <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
       </div>
     `,
