@@ -17,6 +17,9 @@ export default function SettingsPage() {
   const [profileError, setProfileError] = useState('')
   const [profileSuccess, setProfileSuccess] = useState('')
   const [savingProfile, setSavingProfile] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [passwordSuccess, setPasswordSuccess] = useState('')
+  const [savingPassword, setSavingPassword] = useState(false)
 
   const [currentUser, setCurrentUser] = useState<{ id: string; role: string } | null>(null)
   const [canManageCategories, setCanManageCategories] = useState(false)
@@ -68,17 +71,18 @@ export default function SettingsPage() {
     loadCategories()
   }
 
+  // Split into two forms/handlers — not just for the "Profil mentése" vs.
+  // "Jelszó módosítása" UX, but because a text field sharing a <form> with
+  // password inputs is exactly the shape Chrome's account-suggestion popup
+  // looks for. A nonstandard autocomplete token on Avatar URL wasn't enough
+  // to stop it — Chrome's own field classifier still won by proximity. With
+  // no password field anywhere in this form, there's nothing for it to key off.
   async function saveProfile(e: React.FormEvent) {
     e.preventDefault()
     setProfileError('')
     setProfileSuccess('')
-
-    if (newPassword && newPassword !== confirmPassword) {
-      setProfileError('A két jelszó nem egyezik meg')
-      return
-    }
-
     setSavingProfile(true)
+
     const name = [profile.lastName, profile.firstName].filter(Boolean).join(' ')
     const body: Record<string, string> = {
       name,
@@ -87,7 +91,6 @@ export default function SettingsPage() {
       nickname: profile.nickname,
     }
     if (profile.avatarUrl) body.avatarUrl = profile.avatarUrl
-    if (newPassword) { body.currentPassword = currentPassword; body.newPassword = newPassword }
 
     const res = await fetch('/api/profile', {
       method: 'PATCH',
@@ -99,11 +102,36 @@ export default function SettingsPage() {
       setProfileError(data.error || 'Mentés sikertelen')
     } else {
       setProfileSuccess('Profil sikeresen mentve')
+    }
+    setSavingProfile(false)
+  }
+
+  async function savePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPasswordError('')
+    setPasswordSuccess('')
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError('A két jelszó nem egyezik meg')
+      return
+    }
+
+    setSavingPassword(true)
+    const res = await fetch('/api/profile', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    })
+    const data = await res.json()
+    if (!res.ok) {
+      setPasswordError(data.error || 'Mentés sikertelen')
+    } else {
+      setPasswordSuccess('Jelszó megváltoztatva')
       setCurrentPassword('')
       setNewPassword('')
       setConfirmPassword('')
     }
-    setSavingProfile(false)
+    setSavingPassword(false)
   }
 
   const isAdmin = currentUser?.role === 'ADMIN'
@@ -152,11 +180,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1.5">Avatar URL (kép link)</label>
-                {/* autoComplete="off" alone isn't always enough to stop Chrome
-                    filling this with the saved login email — it treats any text
-                    field before a password field as a likely username. A
-                    nonstandard token reliably breaks that association. */}
-                <input type="url" autoComplete="avatar-url-no-autofill" value={profile.avatarUrl} onChange={e => setProfile(p => ({ ...p, avatarUrl: e.target.value }))}
+                <input type="url" autoComplete="off" value={profile.avatarUrl} onChange={e => setProfile(p => ({ ...p, avatarUrl: e.target.value }))}
                   className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400"
                   placeholder="https://..." />
               </div>
@@ -180,8 +204,25 @@ export default function SettingsPage() {
               <span>A rendszer így szólít meg: <strong className="text-gray-900">Szia, {previewName}!</strong></span>
             </div>
 
-            <div className="border-t border-gray-100 pt-4">
-              <h3 className="text-sm font-medium text-gray-700 mb-3">Jelszó módosítása</h3>
+            <div className="flex justify-end">
+              <button type="submit" disabled={savingProfile}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60"
+                style={{ background: '#6C5CE7' }}>
+                {savingProfile ? 'Mentés...' : 'Profil mentése'}
+              </button>
+            </div>
+          </form>
+        </div>
+
+        {/* Password — a separate <form>, deliberately with no other fields in
+            it, so nothing here looks like a username Chrome could pair with
+            these password fields. */}
+        <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Jelszó módosítása</h2>
+          <form onSubmit={savePassword} className="space-y-4">
+            {passwordError && <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-3 text-sm">{passwordError}</div>}
+            {passwordSuccess && <div className="bg-green-50 border border-green-200 text-green-700 rounded-xl px-4 py-3 text-sm">{passwordSuccess}</div>}
+            <div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Jelenlegi jelszó</label>
@@ -202,10 +243,10 @@ export default function SettingsPage() {
             </div>
 
             <div className="flex justify-end">
-              <button type="submit" disabled={savingProfile}
+              <button type="submit" disabled={savingPassword}
                 className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
                 style={{ background: '#6C5CE7' }}>
-                {savingProfile ? 'Mentés...' : 'Változtatások mentése'}
+                {savingPassword ? 'Mentés...' : 'Jelszó módosítása'}
               </button>
             </div>
           </form>
