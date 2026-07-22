@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { sendPriorityReminderEmail } from '@/lib/email'
+import { sendPriorityReminderEmail, formatIdleDays } from '@/lib/email'
 
 // How long a ticket may sit without movement before its assignee is reminded.
 const WINDOW_HOURS: Record<string, number> = {
@@ -77,8 +77,8 @@ export async function GET(_request: NextRequest) {
           ticketId: ticket.id,
           type: REMINDER_TYPE,
           message: unassigned
-            ? `${idleHours} órája nincs felelőse ennek a feladatnak: "${ticket.title}"`
-            : `${idleHours} órája nem mozdult ez a feladat: "${ticket.title}"`,
+            ? `${formatIdleDays(idleHours)} nincs felelőse ennek a feladatnak: "${ticket.title}"`
+            : `${formatIdleDays(idleHours)} nem mozdult ez a feladat: "${ticket.title}"`,
           link: `/tickets/${ticket.id}`,
         },
       })

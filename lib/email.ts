@@ -308,9 +308,10 @@ const PRIORITY_COLORS: Record<string, string> = {
   LOW: '#16A34A',
 }
 
-function formatIdle(hours: number): string {
-  if (hours < 48) return `${hours} órája`
-  return `${Math.floor(hours / 24)} napja`
+// Always expressed in whole days. Rounds down so it never claims more time has
+// passed than actually has, with a floor of 1 so it never reads "0 napja".
+export function formatIdleDays(hours: number): string {
+  return `${Math.max(1, Math.floor(hours / 24))} napja`
 }
 
 export async function sendPriorityReminderEmail(
@@ -323,7 +324,7 @@ export async function sendPriorityReminderEmail(
   const appUrl = process.env.APP_URL || 'http://localhost:3000'
   const label = PRIORITY_LABELS[ticket.priority] || ticket.priority
   const color = PRIORITY_COLORS[ticket.priority] || '#6C5CE7'
-  const idle = formatIdle(idleHours)
+  const idle = formatIdleDays(idleHours)
 
   await sendEmail({
     to: recipient.email,
