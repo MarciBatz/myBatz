@@ -10,7 +10,7 @@ import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichText
 import FileUpload, { type UploadedFile } from '@/components/FileUpload'
 
 interface TodayData {
-  shifts: { id: string; title: string; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
+  shifts: { id: string; shopName: string | null; location: string | null; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
   officeWeek: { assignedUser: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } | null } | null
   events: { id: string; title: string; createdBy: { name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
   vacations: { id: string; note: string | null; user: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
@@ -187,10 +187,11 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
         const chips: { key: string; label: string; color: string; bg: string }[] = []
 
         todayData.shifts.forEach(s => {
+          const shopLabel = s.shopName || s.location || 'Szűrőnap'
           const who = s.assignedTo ? ` · ${s.assignedTo}` : ''
           chips.push({
             key: s.id,
-            label: `${s.title}${who}`,
+            label: `${shopLabel}${who}`,
             color: s.forSelf ? '#dc2626' : '#7c3aed',
             bg: s.forSelf ? '#fef2f2' : '#f5f3ff',
           })
