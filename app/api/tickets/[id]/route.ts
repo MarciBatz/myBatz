@@ -24,8 +24,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       include: {
         category: true,
-        assignee: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
-        createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
+        assignee: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true, lastSeenAt: true } },
+        createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true, lastSeenAt: true } },
         comments: {
           include: {
             user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
@@ -53,21 +53,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     // Whether the current assignee tracks this ticket on their private board.
-    // Deliberately an aggregate: the newest timestamp and nothing else, never
-    // the tasks themselves. Tied to the *current* assignee, so a link made by a
-    // previous assignee stops being shown once the ticket moves on.
-    let privateWork: { ownerName: string; lastUpdatedAt: Date } | null = null
+    // Deliberately an aggregate: owner name, newest timestamp, and a per-phase
+    // count — never the tasks themselves. Tied to the *current* assignee, so a
+    // link made by a previous assignee stops being shown once the ticket moves on.
+    let privateWork: {
+      ownerName: string
+      lastUpdatedAt: Date
+      phases: Record<string, number>
+    } | null = null
     if (ticket.assigneeId) {
-      const newest = await prisma.privateTask.findFirst({
+      const linked = await prisma.privateTask.findMany({
         where: { ticketId: ticket.id, userId: ticket.assigneeId },
-        select: { updatedAt: true },
+        select: { updatedAt: true, column: true },
         orderBy: { updatedAt: 'desc' },
       })
-      if (newest && ticket.assignee) {
+      if (linked.length > 0 && ticket.assignee) {
         const a = ticket.assignee
+        const phases: Record<string, number> = {}
+        for (const t of linked) phases[t.column] = (phases[t.column] || 0) + 1
         privateWork = {
           ownerName: a.nickname || a.firstName || a.name || a.email,
-          lastUpdatedAt: newest.updatedAt,
+          lastUpdatedAt: linked[0].updatedAt,
+          phases,
         }
       }
     }

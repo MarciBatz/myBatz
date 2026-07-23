@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Avatar from '@/components/Avatar'
-import { formatDate, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
+import { formatDate, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
 
 interface AgentUser {
   id: string; email: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
@@ -24,22 +24,6 @@ interface UserSettings {
     canDeleteComments: boolean
     canManageCategories: boolean
   } | null
-}
-
-const ONLINE_THRESHOLD_MS = 2 * 60 * 1000 // 2 perc
-
-function isOnline(lastSeenAt: string | null): boolean {
-  if (!lastSeenAt) return false
-  return Date.now() - new Date(lastSeenAt).getTime() < ONLINE_THRESHOLD_MS
-}
-
-function formatLastSeen(lastSeenAt: string | null): string {
-  if (!lastSeenAt) return 'Soha'
-  const diff = Date.now() - new Date(lastSeenAt).getTime()
-  if (diff < ONLINE_THRESHOLD_MS) return 'Most online'
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} perce`
-  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} órája`
-  return `${Math.floor(diff / 86400000)} napja`
 }
 
 export default function AgentsPage() {

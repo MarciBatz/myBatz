@@ -31,6 +31,11 @@ export default function PrivateTasksPage() {
   const [dragOverCol, setDragOverCol] = useState<PrivateTaskColumnValue | null>(null)
   const [error, setError] = useState('')
   const dragIdRef = useRef<string | null>(null)
+  // Feature: moving a linked task to Kész offers to close the public ticket.
+  const [closePrompt, setClosePrompt] = useState<{ ticketId: string; ticketTitle: string } | null>(null)
+  const [closeReminder, setCloseReminder] = useState<{ ticketId: string; ticketTitle: string } | null>(null)
+  const [closingTicket, setClosingTicket] = useState(false)
+  const [addingTicketId, setAddingTicketId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
@@ -95,7 +100,57 @@ export default function PrivateTasksPage() {
       setError('Nem sikerült áthelyezni a feladatot')
       return
     }
+
+    // Keep the linked public ticket in step with the board.
+    const linkedTicket = task.ticket
+    if (linkedTicket) {
+      if (col === 'IN_PROGRESS' && (linkedTicket.status === 'OPEN' || linkedTicket.status === 'AWAITING')) {
+        // Only promote forward — never reopen a closed ticket, never auto-revert.
+        await promoteTicket(linkedTicket.id, 'IN_PROGRESS')
+      } else if (col === 'DONE' && linkedTicket.status !== 'CLOSED') {
+        // Closing is a deliberate choice, so ask rather than act.
+        setClosePrompt({ ticketId: linkedTicket.id, ticketTitle: linkedTicket.title })
+      }
+    }
     load()
+  }
+
+  async function promoteTicket(ticketId: string, status: string) {
+    const res = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status }),
+    })
+    if (!res.ok) setError('A privát feladat átkerült, de a publikus feladat státuszát nem sikerült frissíteni.')
+    return res.ok
+  }
+
+  async function confirmCloseTicket() {
+    if (!closePrompt) return
+    setClosingTicket(true)
+    const ok = await promoteTicket(closePrompt.ticketId, 'CLOSED')
+    setClosingTicket(false)
+    if (ok) {
+      setCloseReminder({ ...closePrompt })
+      load()
+    }
+    setClosePrompt(null)
+  }
+
+  async function addTicketToPrivate(ticketId: string) {
+    setAddingTicketId(ticketId)
+    const res = await fetch('/api/private-tasks/from-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticketId }),
+    })
+    setAddingTicketId(null)
+    if (res.ok) {
+      load()
+    } else {
+      const d = await res.json().catch(() => ({}))
+      setError(d.error || 'Nem sikerült felvenni a feladatot')
+    }
   }
 
   async function handleDelete(id: string) {
@@ -153,12 +208,29 @@ export default function PrivateTasksPage() {
               Publikus feladataim
             </p>
             {linkable.map(t => (
-              <RailButton key={t.id}
-                active={scope.kind === 'ticket' && scope.id === t.id}
-                onClick={() => setScope({ kind: 'ticket', id: t.id })}
-                label={t.title}
-                count={tasks.filter(x => x.ticketId === t.id).length}
-              />
+              <div key={t.id} className="flex items-center gap-1 shrink-0 lg:shrink">
+                <RailButton
+                  active={scope.kind === 'ticket' && scope.id === t.id}
+                  onClick={() => setScope({ kind: 'ticket', id: t.id })}
+                  label={t.title}
+                  count={tasks.filter(x => x.ticketId === t.id).length}
+                />
+                <button
+                  onClick={() => addTicketToPrivate(t.id)}
+                  disabled={addingTicketId === t.id}
+                  title="Felveszem a privát feladataim közé (Teendők)"
+                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                >
+                  {addingTicketId === t.id ? (
+                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                  )}
+                </button>
+              </div>
             ))}
           </div>
           {linkable.length === 0 && (
@@ -263,6 +335,54 @@ export default function PrivateTasksPage() {
           onClose={() => { setEditing(null); setCreatingIn(null) }}
           onSaved={() => { setEditing(null); setCreatingIn(null); load() }}
         />
+      )}
+
+      {/* Kész → offer to close the linked public ticket */}
+      {closePrompt && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setClosePrompt(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">Lezárod a publikus feladatot is?</h3>
+              <p className="text-sm text-gray-600">
+                A kapcsolódó publikus feladat (<span className="font-medium">{closePrompt.ticketTitle}</span>) még nincs lezárva.
+                Szeretnéd most lezárni?
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setClosePrompt(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Kihagyás</button>
+              <button onClick={confirmCloseTicket} disabled={closingTicket}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg disabled:opacity-60"
+                style={{ background: '#16A34A' }}>
+                {closingTicket ? 'Lezárás...' : 'Igen, lezárom'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* After closing — nudge to leave a comment for colleagues */}
+      {closeReminder && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setCloseReminder(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">A publikus feladat lezárva</h3>
+              <p className="text-sm text-gray-600">
+                Amennyiben szükséges, írj megjegyzést a feladathoz, hogy a kollégáid tájékoztatva legyenek a megoldásról.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setCloseReminder(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Rendben</button>
+              <Link href={`/tickets/${closeReminder.ticketId}`}
+                onClick={() => setCloseReminder(null)}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                style={{ background: '#6C5CE7' }}>
+                Feladat megnyitása
+              </Link>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   )

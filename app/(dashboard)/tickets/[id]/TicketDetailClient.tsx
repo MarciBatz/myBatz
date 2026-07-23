@@ -7,13 +7,14 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
+import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
+import { COLUMN_LABELS, PRIVATE_TASK_COLUMNS, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
 interface Attachment { id: string; fileUrl: string; fileName: string; fileSize: number; mimeType?: string | null }
-interface NamedUser { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
+interface NamedUser { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null; lastSeenAt?: string | null }
 interface Comment {
   id: string; body: string; isInternal: boolean; createdAt: string
   user: NamedUser
@@ -33,8 +34,11 @@ interface Ticket {
 export default function TicketDetailClient({ ticketId, user }: { ticketId: string; user: User }) {
   const router = useRouter()
   const [ticket, setTicket] = useState<Ticket | null>(null)
-  // Only ever an owner name and a timestamp — never the private tasks themselves.
-  const [privateWork, setPrivateWork] = useState<{ ownerName: string; lastUpdatedAt: string } | null>(null)
+  // Only ever an owner name, a timestamp and per-phase counts — never the
+  // private tasks themselves.
+  const [privateWork, setPrivateWork] = useState<{ ownerName: string; lastUpdatedAt: string; phases: Record<string, number> } | null>(null)
+  const [addingToPrivate, setAddingToPrivate] = useState(false)
+  const [addedToPrivate, setAddedToPrivate] = useState(false)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
@@ -130,6 +134,20 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     }
   }
 
+  async function addToPrivateTasks() {
+    setAddingToPrivate(true)
+    const res = await fetch('/api/private-tasks/from-ticket', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ticketId }),
+    })
+    setAddingToPrivate(false)
+    if (res.ok) {
+      setAddedToPrivate(true)
+      loadTicket() // refresh the phase summary
+    }
+  }
+
   function actionLabel(activity: Activity) {
     const map: Record<string, string> = {
       created: 'létrehozta a feladatot',
@@ -194,14 +212,23 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 <svg className="w-4 h-4 text-gray-400 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
                 </svg>
-                <p className="text-xs text-gray-500 leading-relaxed">
-                  <span className="font-medium text-gray-600">{privateWork.ownerName}</span> privát
-                  feladatmenedzsmenten belül foglalkozik ezzel a feladattal.
-                  {' '}Utolsó frissítés: <span className="font-medium text-gray-600">{formatDateTime(privateWork.lastUpdatedAt)}</span>
-                  {privateWork.ownerName && user.id === ticket.assignee?.id && (
-                    <> · <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link></>
-                  )}
-                </p>
+                <div className="text-xs text-gray-500 leading-relaxed">
+                  <p>
+                    <span className="font-medium text-gray-600">{privateWork.ownerName}</span> privát
+                    feladatmenedzsmenten belül foglalkozik ezzel a feladattal.
+                    {' '}Utolsó frissítés: <span className="font-medium text-gray-600">{formatDateTime(privateWork.lastUpdatedAt)}</span>
+                    {user.id === ticket.assignee?.id && (
+                      <> · <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link></>
+                    )}
+                  </p>
+                  <p className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
+                    {PRIVATE_TASK_COLUMNS.filter(c => privateWork.phases[c]).map(c => (
+                      <span key={c}>
+                        {COLUMN_LABELS[c as PrivateTaskColumnValue]} <span className="font-medium text-gray-600">{privateWork.phases[c]}</span>
+                      </span>
+                    ))}
+                  </p>
+                </div>
               </div>
             )}
           </div>
@@ -339,6 +366,31 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
         {/* Sidebar */}
         <div className="w-full lg:w-64 space-y-4 flex-shrink-0">
+          {/* People */}
+          <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
+            <PersonCard label="Felelős" person={ticket.assignee} emptyText="Nincs hozzárendelve" />
+            <PersonCard label="Kiosztotta" person={ticket.createdBy} />
+          </div>
+
+          {/* Add to my private tasks — only the assignee sees this */}
+          {user.id === ticket.assignee?.id && ticket.status !== 'CLOSED' && (
+            <button
+              onClick={addToPrivateTasks}
+              disabled={addingToPrivate}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-60"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              {addingToPrivate ? 'Hozzáadás...' : addedToPrivate ? 'Hozzáadva — még egyet?' : 'Felveszem a privát feladataim közé'}
+            </button>
+          )}
+          {addedToPrivate && (
+            <p className="text-xs text-gray-500 -mt-2 px-1">
+              A Teendők közé került, a cím, leírás és prioritás átmásolva. <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link>
+            </p>
+          )}
+
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Részletek</h3>
             <div className="space-y-3">
@@ -479,6 +531,32 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
           </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function PersonCard({ label, person, emptyText }: { label: string; person: NamedUser | null | undefined; emptyText?: string }) {
+  if (!person) {
+    return (
+      <div>
+        <p className="text-xs text-gray-400 mb-1">{label}</p>
+        <p className="text-sm text-gray-400">{emptyText || '—'}</p>
+      </div>
+    )
+  }
+  const online = isOnline(person.lastSeenAt)
+  return (
+    <div>
+      <p className="text-xs text-gray-400 mb-1.5">{label}</p>
+      <div className="flex items-center gap-2.5">
+        <Avatar name={person.name} firstName={person.firstName} lastName={person.lastName} nickname={person.nickname} email={person.email} avatarUrl={person.avatarUrl} size="md" online={online} />
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-gray-800 truncate">{fullDisplayName(person) || person.email}</p>
+          <p className={`text-xs ${online ? 'text-green-600' : 'text-gray-400'}`}>
+            {online ? 'Most online' : `Utoljára ${formatLastSeen(person.lastSeenAt).toLowerCase()} online`}
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

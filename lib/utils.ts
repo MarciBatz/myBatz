@@ -65,3 +65,24 @@ export function formatDate(date: Date | string): string {
 export function formatDateTime(date: Date | string): string {
   return new Date(date).toLocaleString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
+
+// A user is considered online if their last heartbeat was within this window.
+// The heartbeat fires every 60s (see Sidebar), so 2 minutes tolerates one miss.
+export const ONLINE_THRESHOLD_MS = 2 * 60 * 1000
+
+export function isOnline(lastSeenAt: string | Date | null | undefined): boolean {
+  if (!lastSeenAt) return false
+  return Date.now() - new Date(lastSeenAt).getTime() < ONLINE_THRESHOLD_MS
+}
+
+// Bare relative label — "Most online", "3 perce", "2 órája", "5 napja", "Soha".
+// Used directly under the "Utoljára aktív" table header; callers that want the
+// "Utoljára … online" phrasing (ticket profile cards) compose it themselves.
+export function formatLastSeen(lastSeenAt: string | Date | null | undefined): string {
+  if (!lastSeenAt) return 'Soha'
+  const diff = Date.now() - new Date(lastSeenAt).getTime()
+  if (diff < ONLINE_THRESHOLD_MS) return 'Most online'
+  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / 60000)} perce`
+  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / 3600000)} órája`
+  return `${Math.floor(diff / 86400000)} napja`
+}
