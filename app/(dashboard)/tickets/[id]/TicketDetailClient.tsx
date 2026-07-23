@@ -43,6 +43,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [addingToPrivate, setAddingToPrivate] = useState(false)
   const [justAdded, setJustAdded] = useState(false)
   const [confirmReAdd, setConfirmReAdd] = useState(false)
+  const [nudgeConfirming, setNudgeConfirming] = useState(false)
+  const [nudging, setNudging] = useState(false)
+  const [nudgeError, setNudgeError] = useState('')
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
@@ -157,6 +160,20 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     if (res.ok) {
       setJustAdded(true)
       loadTicket() // refresh phase summary + viewerLinkedCount
+    }
+  }
+
+  async function sendNudge() {
+    setNudging(true)
+    setNudgeError('')
+    const res = await fetch(`/api/tickets/${ticketId}/nudge`, { method: 'POST' })
+    setNudging(false)
+    setNudgeConfirming(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setNudgeError(d.error || 'Hiba történt')
+    } else {
+      loadTicket() // refresh activity log
     }
   }
 
@@ -387,7 +404,13 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
         <div className="w-full lg:w-64 space-y-4 flex-shrink-0">
           {/* People */}
           <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 space-y-3">
-            <PersonCard label="Felelős" person={ticket.assignee} emptyText="Nincs hozzárendelve" />
+            <PersonCard label="Felelős" person={ticket.assignee} emptyText="Nincs hozzárendelve"
+              onNudge={
+                user.role !== 'READER' && ticket.assignee && ticket.assignee.id !== user.id
+                  ? () => setNudgeConfirming(true)
+                  : undefined
+              }
+            />
             <PersonCard label="Kiosztotta" person={ticket.createdBy} />
           </div>
 
@@ -555,6 +578,36 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
         </div>
       )}
 
+      {/* Nudge confirm — same flow as the ticket list's bell icon */}
+      {nudgeConfirming && ticket.assignee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setNudgeConfirming(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Emlékeztető küldése</h3>
+            </div>
+            {nudgeError && <p className="text-sm text-red-500 bg-red-50 border border-red-100 rounded-lg px-3 py-2 mb-4">{nudgeError}</p>}
+            <p className="text-gray-600 text-sm mb-6">
+              Szeretnéd emlékeztetni <strong>{fullDisplayName(ticket.assignee) || ticket.assignee.email}</strong> felhasználót, hogy foglalkozzon ezzel a feladattal?
+              <br /><span className="text-gray-400 mt-1 block">„{ticket.title}"</span>
+            </p>
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setNudgeConfirming(false)}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
+              <button onClick={sendNudge} disabled={nudging}
+                className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                style={{ background: '#6C5CE7' }}>
+                {nudging ? 'Küldés...' : 'Emlékeztető küldése'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Re-add confirm — this ticket already has a private task */}
       {confirmReAdd && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setConfirmReAdd(false)}>
@@ -580,7 +633,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   )
 }
 
-function PersonCard({ label, person, emptyText }: { label: string; person: NamedUser | null | undefined; emptyText?: string }) {
+function PersonCard({ label, person, emptyText, onNudge }: {
+  label: string; person: NamedUser | null | undefined; emptyText?: string; onNudge?: () => void
+}) {
   if (!person) {
     return (
       <div>
@@ -592,7 +647,20 @@ function PersonCard({ label, person, emptyText }: { label: string; person: Named
   const online = isOnline(person.lastSeenAt)
   return (
     <div>
-      <p className="text-xs text-gray-400 mb-1.5">{label}</p>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs text-gray-400">{label}</p>
+        {onNudge && (
+          <button
+            onClick={onNudge}
+            title="Emlékeztető küldése a felelősnek"
+            className="p-1 -m-1 rounded-lg text-gray-300 hover:text-indigo-500 hover:bg-indigo-50 transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+            </svg>
+          </button>
+        )}
+      </div>
       <div className="flex items-center gap-2.5">
         <Avatar name={person.name} firstName={person.firstName} lastName={person.lastName} nickname={person.nickname} email={person.email} avatarUrl={person.avatarUrl} size="md" online={online} />
         <div className="min-w-0">
