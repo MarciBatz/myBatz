@@ -63,7 +63,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     } | null = null
     if (ticket.assigneeId) {
       const linked = await prisma.privateTask.findMany({
-        where: { ticketId: ticket.id, userId: ticket.assigneeId },
+        // Archived tasks are filed away — they no longer describe active work.
+        where: { ticketId: ticket.id, userId: ticket.assigneeId, archivedAt: null },
         select: { updatedAt: true, column: true },
         orderBy: { updatedAt: 'desc' },
       })
@@ -79,7 +80,13 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    return NextResponse.json({ ticket, privateWork })
+    // How many non-archived private tasks the *viewer* already has for this
+    // ticket — drives the "Felveszem" button state and the re-add confirm.
+    const viewerLinkedCount = await prisma.privateTask.count({
+      where: { ticketId: ticket.id, userId: user.id, archivedAt: null },
+    })
+
+    return NextResponse.json({ ticket, privateWork, viewerLinkedCount })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return unauthorizedResponse()

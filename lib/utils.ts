@@ -66,6 +66,26 @@ export function formatDateTime(date: Date | string): string {
   return new Date(date).toLocaleString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })
 }
 
+// Rich-text ticket descriptions are stored as HTML with @[name](id) mentions.
+// When copied into a private task (shown as plain text) the tags would show
+// literally, so flatten to readable plain text first.
+export function htmlToPlainText(html: string): string {
+  if (!html) return ''
+  return html
+    .replace(/@\[([^\]]+)\]\([^)]*\)/g, '@$1')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&lt;/gi, '<')
+    .replace(/&gt;/gi, '>')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+}
+
 // A user is considered online if their last heartbeat was within this window.
 // The heartbeat fires every 60s (see Sidebar), so 2 minutes tolerates one miss.
 export const ONLINE_THRESHOLD_MS = 2 * 60 * 1000

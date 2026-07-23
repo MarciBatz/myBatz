@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
-import { isPrivateTaskColumn } from '@/lib/private-tasks'
+import { isPrivateTaskColumn, type PrivateTaskColumnValue } from '@/lib/private-tasks'
+import { logTaskMoved } from '@/lib/private-task-events'
 
 /**
  * Writes the card order of one column. The client sends the column's full id
@@ -23,7 +24,7 @@ export async function POST(request: NextRequest) {
 
     const owned = await prisma.privateTask.findMany({
       where: { id: { in: ids }, userId: session.id },
-      select: { id: true },
+      select: { id: true, column: true },
     })
     if (owned.length !== ids.length) {
       return NextResponse.json({ error: 'A feladat nem található' }, { status: 404 })
@@ -34,6 +35,14 @@ export async function POST(request: NextRequest) {
         prisma.privateTask.update({ where: { id }, data: { column, position: index } })
       )
     )
+
+    // Log only the cards that actually changed column (reordering within a
+    // column isn't a lifecycle event).
+    for (const t of owned) {
+      if (t.column !== column) {
+        await logTaskMoved(t.id, t.column as PrivateTaskColumnValue, column)
+      }
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

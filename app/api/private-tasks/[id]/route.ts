@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
-import { isPrivateTaskColumn } from '@/lib/private-tasks'
+import { isPrivateTaskColumn, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import { writeAuditLog } from '@/lib/audit'
+import { logTaskMoved } from '@/lib/private-task-events'
 
 async function assertLinkable(ticketId: string, userId: string): Promise<boolean> {
   const ticket = await prisma.ticket.findFirst({
@@ -22,7 +23,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // is identical whether the row is missing or owned by another user.
     const existing = await prisma.privateTask.findFirst({
       where: { id, userId: session.id },
-      select: { id: true },
+      select: { id: true, column: true },
     })
     if (!existing) return NextResponse.json({ error: 'A feladat nem található' }, { status: 404 })
 
@@ -54,6 +55,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       },
       include: { ticket: { select: { id: true, title: true, status: true } } },
     })
+
+    // Record a column change made through the editor (drag moves go via reorder).
+    if (column !== undefined && column !== existing.column) {
+      await logTaskMoved(task.id, existing.column as PrivateTaskColumnValue, column as PrivateTaskColumnValue)
+    }
 
     // This route only fires from the modal's explicit "Mentés" — the board's
     // drag-and-drop reorder goes through a separate endpoint — so one save

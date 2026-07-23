@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { writeAuditLog } from '@/lib/audit'
+import { logTaskCreated } from '@/lib/private-task-events'
+import { htmlToPlainText } from '@/lib/utils'
 
 /**
  * Creates a private task from a ticket the caller is assigned to, copying the
@@ -39,7 +41,8 @@ export async function POST(request: NextRequest) {
       data: {
         userId: session.id,
         title: ticket.title,
-        description: ticket.description || null,
+        // Ticket descriptions are HTML; flatten so tags don't show literally.
+        description: ticket.description ? htmlToPlainText(ticket.description) || null : null,
         column: 'TODO',
         priority: ticket.priority,
         ticketId: ticket.id,
@@ -47,6 +50,7 @@ export async function POST(request: NextRequest) {
       include: { ticket: { select: { id: true, title: true, status: true } } },
     })
 
+    await logTaskCreated(task.id, 'TODO')
     await writeAuditLog(session.id, 'private_task_created', `Privát feladat létrehozva ticketből (ID: ${task.id})`, request)
 
     return NextResponse.json({ task }, { status: 201 })

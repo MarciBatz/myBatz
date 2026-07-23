@@ -4,6 +4,7 @@ import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { isPrivateTaskColumn } from '@/lib/private-tasks'
 import { writeAuditLog } from '@/lib/audit'
+import { logTaskCreated } from '@/lib/private-task-events'
 
 /**
  * A ticket may only be linked if the caller is still its assignee and it is
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
 
     const [tasks, linkableTickets] = await Promise.all([
       prisma.privateTask.findMany({
-        where: { userId: session.id },
+        // Archived tasks live in the archive view, not on the board.
+        where: { userId: session.id, archivedAt: null },
         include: {
           ticket: { select: { id: true, title: true, status: true } },
           _count: { select: { comments: true } },
@@ -78,6 +80,7 @@ export async function POST(request: NextRequest) {
       include: { ticket: { select: { id: true, title: true, status: true } } },
     })
 
+    await logTaskCreated(task.id, task.column)
     // Content-free by design: only that a private task exists and its id, so
     // the log can show usage without ever naming what the task is about.
     await writeAuditLog(session.id, 'private_task_created', `Privát feladat létrehozva (ID: ${task.id})`, request)

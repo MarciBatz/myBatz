@@ -8,7 +8,7 @@ import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
-import { COLUMN_LABELS, PRIVATE_TASK_COLUMNS, type PrivateTaskColumnValue } from '@/lib/private-tasks'
+import { COLUMN_LABELS, COLUMN_COLORS, PRIVATE_TASK_COLUMNS, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
 
@@ -37,8 +37,12 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   // Only ever an owner name, a timestamp and per-phase counts — never the
   // private tasks themselves.
   const [privateWork, setPrivateWork] = useState<{ ownerName: string; lastUpdatedAt: string; phases: Record<string, number> } | null>(null)
+  // How many private tasks the current viewer already has for this ticket —
+  // from the server, so the button reflects reality after a reload.
+  const [viewerLinkedCount, setViewerLinkedCount] = useState(0)
   const [addingToPrivate, setAddingToPrivate] = useState(false)
-  const [addedToPrivate, setAddedToPrivate] = useState(false)
+  const [justAdded, setJustAdded] = useState(false)
+  const [confirmReAdd, setConfirmReAdd] = useState(false)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
@@ -62,6 +66,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     const d = await r.json()
     setTicket(d.ticket)
     setPrivateWork(d.privateWork ?? null)
+    setViewerLinkedCount(d.viewerLinkedCount ?? 0)
     setLoading(false)
   }, [ticketId])
 
@@ -134,7 +139,14 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     }
   }
 
+  function onAddClick() {
+    // Already recorded once → confirm before duplicating.
+    if (viewerLinkedCount > 0) { setConfirmReAdd(true); return }
+    addToPrivateTasks()
+  }
+
   async function addToPrivateTasks() {
+    setConfirmReAdd(false)
     setAddingToPrivate(true)
     const res = await fetch('/api/private-tasks/from-ticket', {
       method: 'POST',
@@ -143,8 +155,8 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     })
     setAddingToPrivate(false)
     if (res.ok) {
-      setAddedToPrivate(true)
-      loadTicket() // refresh the phase summary
+      setJustAdded(true)
+      loadTicket() // refresh phase summary + viewerLinkedCount
     }
   }
 
@@ -221,13 +233,20 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                       <> · <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link></>
                     )}
                   </p>
-                  <p className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5">
-                    {PRIVATE_TASK_COLUMNS.filter(c => privateWork.phases[c]).map(c => (
-                      <span key={c}>
-                        {COLUMN_LABELS[c as PrivateTaskColumnValue]} <span className="font-medium text-gray-600">{privateWork.phases[c]}</span>
-                      </span>
-                    ))}
-                  </p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {PRIVATE_TASK_COLUMNS.filter(c => privateWork.phases[c]).map(c => {
+                      const col = c as PrivateTaskColumnValue
+                      return (
+                        <span key={c}
+                          className="inline-flex items-center gap-1.5 rounded-full pl-1.5 pr-2 py-0.5 text-[11px] font-medium"
+                          style={{ background: `${COLUMN_COLORS[col]}14`, color: COLUMN_COLORS[col] }}>
+                          <span className="w-1.5 h-1.5 rounded-full" style={{ background: COLUMN_COLORS[col] }} />
+                          {COLUMN_LABELS[col]}
+                          <span className="opacity-70">{privateWork.phases[c]}</span>
+                        </span>
+                      )
+                    })}
+                  </div>
                 </div>
               </div>
             )}
@@ -375,17 +394,21 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
           {/* Add to my private tasks — only the assignee sees this */}
           {user.id === ticket.assignee?.id && ticket.status !== 'CLOSED' && (
             <button
-              onClick={addToPrivateTasks}
+              onClick={onAddClick}
               disabled={addingToPrivate}
               className="w-full flex items-center justify-center gap-2 px-3 py-2.5 text-sm font-medium rounded-xl border border-indigo-200 text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-60"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              {addingToPrivate ? 'Hozzáadás...' : addedToPrivate ? 'Hozzáadva — még egyet?' : 'Felveszem a privát feladataim közé'}
+              {addingToPrivate
+                ? 'Hozzáadás...'
+                : viewerLinkedCount > 0
+                  ? `Már a privát feladataid közt (${viewerLinkedCount}) — még egyet?`
+                  : 'Felveszem a privát feladataim közé'}
             </button>
           )}
-          {addedToPrivate && (
+          {justAdded && (
             <p className="text-xs text-gray-500 -mt-2 px-1">
               A Teendők közé került, a cím, leírás és prioritás átmásolva. <Link href="/private-tasks" className="text-indigo-500 hover:text-indigo-600">Megnyitás</Link>
             </p>
@@ -527,6 +550,28 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 className="px-4 py-2 text-sm text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-60">
                 {deletingComment ? 'Törlés...' : 'Igen, töröld'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Re-add confirm — this ticket already has a private task */}
+      {confirmReAdd && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setConfirmReAdd(false)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">Már rögzítve van</h3>
+              <p className="text-sm text-gray-600">
+                Ez a feladat már szerepel a privát feladataid között
+                {viewerLinkedCount > 1 ? ` (${viewerLinkedCount} példányban)` : ''}. Biztosan szeretnéd ismét rögzíteni?
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setConfirmReAdd(false)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Nem</button>
+              <button onClick={addToPrivateTasks}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                style={{ background: '#6C5CE7' }}>Igen, rögzítem</button>
             </div>
           </div>
         </div>

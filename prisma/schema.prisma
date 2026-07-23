@@ -227,11 +227,30 @@ model PrivateTask {
   ticketId    String?
   ticket      Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)
   comments    PrivateTaskComment[]
+  events      PrivateTaskEvent[]
+  doneAt      DateTime?         // when it most recently entered the Kész column — archive sort key
+  archivedAt  DateTime?         // set once filed away; archived tasks leave the board
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
 
   @@index([userId, column])
+  @@index([userId, archivedAt])
   @@index([ticketId])
+}
+
+/// Lifecycle history of a private task — creation, each column move, archiving.
+/// Same owner-only visibility as the task (reached only through it). Comments
+/// live in their own table and are merged in by timestamp for the history view.
+model PrivateTaskEvent {
+  id            String             @id @default(cuid())
+  privateTaskId String
+  privateTask   PrivateTask        @relation(fields: [privateTaskId], references: [id], onDelete: Cascade)
+  type          String             // 'created' | 'moved' | 'archived'
+  fromColumn    PrivateTaskColumn?
+  toColumn      PrivateTaskColumn?
+  createdAt     DateTime           @default(now())
+
+  @@index([privateTaskId])
 }
 
 /// Progress notes on a private task. Readable only through the parent task, so

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
-import { formatDate } from '@/lib/utils'
+import { formatDate, formatDateTime } from '@/lib/utils'
 import {
   PRIVATE_TASK_COLUMNS,
   COLUMN_LABELS,
@@ -16,7 +16,17 @@ import {
 } from '@/lib/private-tasks'
 import PrivateTaskModal from '@/components/PrivateTaskModal'
 
-type Scope = { kind: 'all' } | { kind: 'unlinked' } | { kind: 'ticket'; id: string }
+type Scope = { kind: 'all' } | { kind: 'unlinked' } | { kind: 'ticket'; id: string } | { kind: 'archive' }
+
+interface ArchiveEvent { id: string; type: string; fromColumn: string | null; toColumn: string | null; createdAt: string }
+interface ArchiveComment { id: string; body: string; createdAt: string }
+interface ArchiveTask {
+  id: string; title: string; description: string | null; priority: string
+  doneAt: string | null; archivedAt: string | null; createdAt: string
+  ticket: { id: string; title: string } | null
+  events: ArchiveEvent[]
+  comments: ArchiveComment[]
+}
 
 export default function PrivateTasksPage() {
   const router = useRouter()
@@ -36,12 +46,18 @@ export default function PrivateTasksPage() {
   const [closeReminder, setCloseReminder] = useState<{ ticketId: string; ticketTitle: string } | null>(null)
   const [closingTicket, setClosingTicket] = useState(false)
   const [addingTicketId, setAddingTicketId] = useState<string | null>(null)
+  const [confirmAddTicketId, setConfirmAddTicketId] = useState<string | null>(null)
+  const [archiveTasks, setArchiveTasks] = useState<ArchiveTask[]>([])
+  const [archiveLoading, setArchiveLoading] = useState(false)
+  const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
+  const [archivingId, setArchivingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (canUsePrivateTasks(d.user?.role)) {
         setAllowed(true)
         load()
+        loadArchive() // for an accurate count on the rail
       } else {
         router.replace('/dashboard')
       }
@@ -58,9 +74,9 @@ export default function PrivateTasksPage() {
   }, [])
 
   function inScope(t: PrivateTask) {
-    if (scope.kind === 'all') return true
+    if (scope.kind === 'ticket') return t.ticketId === scope.id
     if (scope.kind === 'unlinked') return !t.ticketId
-    return t.ticketId === scope.id
+    return true // 'all' (and 'archive', which doesn't render the board)
   }
 
   const visible = tasks.filter(inScope)
@@ -137,7 +153,14 @@ export default function PrivateTasksPage() {
     setClosePrompt(null)
   }
 
+  function onRailAddClick(ticketId: string) {
+    // Already have a task for this ticket → confirm before duplicating.
+    if (tasks.some(t => t.ticketId === ticketId)) { setConfirmAddTicketId(ticketId); return }
+    addTicketToPrivate(ticketId)
+  }
+
   async function addTicketToPrivate(ticketId: string) {
+    setConfirmAddTicketId(null)
     setAddingTicketId(ticketId)
     const res = await fetch('/api/private-tasks/from-ticket', {
       method: 'POST',
@@ -151,6 +174,26 @@ export default function PrivateTasksPage() {
       const d = await res.json().catch(() => ({}))
       setError(d.error || 'Nem sikerült felvenni a feladatot')
     }
+  }
+
+  const loadArchive = useCallback(async () => {
+    setArchiveLoading(true)
+    const res = await fetch('/api/private-tasks/archive')
+    const d = await res.json()
+    setArchiveTasks(d.tasks || [])
+    setArchiveLoading(false)
+  }, [])
+
+  useEffect(() => {
+    if (scope.kind === 'archive') loadArchive()
+  }, [scope, loadArchive])
+
+  async function archiveTask(id: string) {
+    setArchivingId(id)
+    const res = await fetch(`/api/private-tasks/${id}/archive`, { method: 'POST' })
+    setArchivingId(null)
+    if (res.ok) load()
+    else setError('Nem sikerült archiválni a feladatot')
   }
 
   async function handleDelete(id: string) {
@@ -207,38 +250,51 @@ export default function PrivateTasksPage() {
             <p className="hidden lg:block text-[11px] uppercase tracking-wide text-gray-400 font-semibold px-2 py-1.5 mt-2">
               Publikus feladataim
             </p>
-            {linkable.map(t => (
-              <div key={t.id} className="flex items-center gap-1 shrink-0 lg:shrink">
-                <RailButton
-                  active={scope.kind === 'ticket' && scope.id === t.id}
-                  onClick={() => setScope({ kind: 'ticket', id: t.id })}
-                  label={t.title}
-                  count={tasks.filter(x => x.ticketId === t.id).length}
-                />
-                <button
-                  onClick={() => addTicketToPrivate(t.id)}
-                  disabled={addingTicketId === t.id}
-                  title="Felveszem a privát feladataim közé (Teendők)"
-                  className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
-                >
-                  {addingTicketId === t.id ? (
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-                    </svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-                  )}
-                </button>
-              </div>
-            ))}
+            {linkable.map(t => {
+              const active = scope.kind === 'ticket' && scope.id === t.id
+              const count = tasks.filter(x => x.ticketId === t.id).length
+              return (
+                <div key={t.id} className="flex items-center gap-1 shrink-0 lg:w-full">
+                  <button
+                    onClick={() => setScope({ kind: 'ticket', id: t.id })}
+                    className={`min-w-0 lg:flex-1 flex items-center gap-2 px-2.5 lg:px-2 py-1.5 rounded-lg text-left border lg:border-0 ${
+                      active ? 'bg-indigo-50 text-indigo-700 border-indigo-100' : 'text-gray-600 hover:bg-gray-50 border-gray-100'
+                    }`}
+                  >
+                    <span className="text-sm truncate max-w-36 lg:max-w-none lg:flex-1">{t.title}</span>
+                    <span className="text-[11px] text-gray-400 shrink-0">{count}</span>
+                  </button>
+                  <button
+                    onClick={() => onRailAddClick(t.id)}
+                    disabled={addingTicketId === t.id}
+                    title="Felveszem a privát feladataim közé (Teendők)"
+                    className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+                  >
+                    {addingTicketId === t.id ? (
+                      <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                    )}
+                  </button>
+                </div>
+              )
+            })}
+            {linkable.length === 0 && (
+              <p className="hidden lg:block px-2 py-1.5 text-xs text-gray-400">Jelenleg nincs rád osztott nyitott feladat.</p>
+            )}
+
+            {/* Archive view */}
+            <div className="hidden lg:block border-t border-gray-100 mt-2 pt-2" />
+            <RailButton active={scope.kind === 'archive'} onClick={() => setScope({ kind: 'archive' })}
+              label="🗄 Archívum" count={archiveTasks.length || 0} muted />
           </div>
-          {linkable.length === 0 && (
-            <p className="hidden lg:block px-2 py-1.5 text-xs text-gray-400">Jelenleg nincs rád osztott nyitott feladat.</p>
-          )}
         </aside>
 
         {/* Board */}
+        {scope.kind !== 'archive' && (
         <div className="flex-1 min-w-0 overflow-x-auto">
           <div className="flex gap-4 min-w-max pb-2">
             {PRIVATE_TASK_COLUMNS.map(col => {
@@ -273,13 +329,25 @@ export default function PrivateTasksPage() {
                       >
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm text-gray-800 font-medium leading-snug">{t.title}</p>
-                          <button
-                            onClick={e => { e.stopPropagation(); handleDelete(t.id) }}
-                            title="Törlés"
-                            className="text-gray-300 hover:text-red-400 p-0.5 shrink-0"
-                          >
-                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-                          </button>
+                          <div className="flex items-center gap-0.5 shrink-0">
+                            {col === 'DONE' && (
+                              <button
+                                onClick={e => { e.stopPropagation(); archiveTask(t.id) }}
+                                disabled={archivingId === t.id}
+                                title="Archiválás"
+                                className="text-gray-300 hover:text-indigo-500 p-0.5 disabled:opacity-50"
+                              >
+                                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4" /></svg>
+                              </button>
+                            )}
+                            <button
+                              onClick={e => { e.stopPropagation(); handleDelete(t.id) }}
+                              title="Törlés"
+                              className="text-gray-300 hover:text-red-400 p-0.5"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="flex items-center gap-1.5 flex-wrap mt-2">
@@ -324,6 +392,47 @@ export default function PrivateTasksPage() {
             </p>
           )}
         </div>
+        )}
+
+        {/* Archive */}
+        {scope.kind === 'archive' && (
+          <div className="flex-1 min-w-0">
+            <div className="bg-white rounded-xl border border-gray-100 overflow-hidden">
+              <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-700">Archívum</h2>
+                <span className="text-xs text-gray-400">{archiveTasks.length} megoldott feladat</span>
+              </div>
+              {archiveLoading ? (
+                <p className="px-4 py-8 text-sm text-gray-400 text-center">Betöltés…</p>
+              ) : archiveTasks.length === 0 ? (
+                <p className="px-4 py-8 text-sm text-gray-400 text-center">Még nincs archivált feladat. A Kész oszlopban lévő feladatokat archiválhatod.</p>
+              ) : (
+                <ul className="divide-y divide-gray-50">
+                  {archiveTasks.map(t => (
+                    <li key={t.id}>
+                      <button
+                        onClick={() => setExpandedArchive(expandedArchive === t.id ? null : t.id)}
+                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                      >
+                        <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${expandedArchive === t.id ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                        <span className="flex-1 min-w-0">
+                          <span className="block text-sm font-medium text-gray-800 truncate">{t.title}</span>
+                          {t.ticket && <span className="block text-[11px] text-indigo-500 truncate">🔗 {t.ticket.title}</span>}
+                        </span>
+                        <span className="text-[11px] text-gray-400 shrink-0 text-right">
+                          Kész: {t.doneAt ? formatDate(t.doneAt) : (t.archivedAt ? formatDate(t.archivedAt) : '—')}
+                        </span>
+                      </button>
+                      {expandedArchive === t.id && (
+                        <ArchiveDetail task={t} />
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        )}
       </div>
 
       {(editing || creatingIn) && (
@@ -384,6 +493,27 @@ export default function PrivateTasksPage() {
           </div>
         </div>
       )}
+
+      {/* Rail "+" re-add confirm */}
+      {confirmAddTicketId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setConfirmAddTicketId(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">Már rögzítve van</h3>
+              <p className="text-sm text-gray-600">
+                Ehhez a publikus feladathoz már tartozik privát feladatod. Biztosan szeretnéd ismét rögzíteni?
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setConfirmAddTicketId(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Nem</button>
+              <button onClick={() => addTicketToPrivate(confirmAddTicketId)}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg"
+                style={{ background: '#6C5CE7' }}>Igen, rögzítem</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -405,5 +535,62 @@ function RailButton({ active, onClick, label, count, muted }: {
       </span>
       <span className="text-[11px] text-gray-400 shrink-0">{count}</span>
     </button>
+  )
+}
+
+// Merged lifecycle timeline (events + progress notes) for one archived task.
+function ArchiveDetail({ task }: { task: ArchiveTask }) {
+  const colLabel = (c: string | null) => (c && COLUMN_LABELS[c as PrivateTaskColumnValue]) || c || '—'
+
+  type Row = { at: string; node: React.ReactNode; dot: string }
+  const rows: Row[] = []
+
+  for (const e of task.events) {
+    if (e.type === 'created') {
+      rows.push({ at: e.createdAt, dot: '#64748B', node: <>Létrehozva a(z) <strong>{colLabel(e.toColumn)}</strong> oszlopban</> })
+    } else if (e.type === 'moved') {
+      rows.push({ at: e.createdAt, dot: COLUMN_COLORS[(e.toColumn as PrivateTaskColumnValue)] || '#6C5CE7', node: <>Áthelyezve: <strong>{colLabel(e.fromColumn)}</strong> → <strong>{colLabel(e.toColumn)}</strong></> })
+    } else if (e.type === 'archived') {
+      rows.push({ at: e.createdAt, dot: '#334155', node: <>Archiválva</> })
+    }
+  }
+  for (const c of task.comments) {
+    rows.push({ at: c.createdAt, dot: '#6C5CE7', node: <span className="whitespace-pre-wrap">💬 {c.body}</span> })
+  }
+  rows.sort((a, b) => a.at.localeCompare(b.at))
+
+  return (
+    <div className="px-4 pb-4 pt-1 bg-gray-50/60 border-t border-gray-100">
+      {task.description && (
+        <p className="text-sm text-gray-600 whitespace-pre-wrap mb-3 mt-3">{task.description}</p>
+      )}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        <span className="inline-flex items-center gap-1.5 bg-white border border-gray-100 rounded-lg px-2.5 py-1 text-[11px] text-gray-600">
+          <PriorityBadge priority={task.priority} />
+        </span>
+        {task.ticket && (
+          <Link href={`/tickets/${task.ticket.id}`} className="inline-flex items-center gap-1 bg-white border border-gray-100 rounded-lg px-2.5 py-1 text-[11px] text-indigo-600 hover:border-indigo-200">
+            🔗 {task.ticket.title}
+          </Link>
+        )}
+      </div>
+
+      <p className="text-[11px] uppercase tracking-wide text-gray-400 font-semibold mb-2">Történet</p>
+      {rows.length === 0 ? (
+        <p className="text-xs text-gray-400">Ehhez a feladathoz nincs rögzített esemény.</p>
+      ) : (
+        <ol className="space-y-2">
+          {rows.map((r, i) => (
+            <li key={i} className="flex items-start gap-2.5">
+              <span className="w-2 h-2 rounded-full mt-1.5 shrink-0" style={{ background: r.dot }} />
+              <div className="min-w-0">
+                <p className="text-sm text-gray-700 leading-snug">{r.node}</p>
+                <p className="text-[11px] text-gray-400">{formatDateTime(r.at)}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
   )
 }
