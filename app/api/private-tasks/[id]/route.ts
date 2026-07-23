@@ -23,12 +23,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     // is identical whether the row is missing or owned by another user.
     const existing = await prisma.privateTask.findFirst({
       where: { id, userId: session.id },
-      select: { id: true, column: true },
+      select: { id: true, column: true, dueDate: true, reminderDaysBefore: true },
     })
     if (!existing) return NextResponse.json({ error: 'A feladat nem található' }, { status: 404 })
 
     const body = await request.json()
-    const { title, description, column, priority, dueDate, ticketId } = body
+    const { title, description, column, priority, dueDate, reminderDaysBefore, ticketId } = body
 
     if (title !== undefined && !String(title).trim()) {
       return NextResponse.json({ error: 'A cím nem lehet üres' }, { status: 400 })
@@ -43,6 +43,16 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       )
     }
 
+    const nextDueDate = dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existing.dueDate
+    const nextReminder = reminderDaysBefore !== undefined ? reminderDaysBefore : existing.reminderDaysBefore
+    // No deadline → no reminder, regardless of what was asked for.
+    const resolvedReminder = nextDueDate && Number.isInteger(nextReminder) ? nextReminder : null
+    // Changing the deadline or the lead time re-arms the reminder so it can
+    // fire again against the new date instead of staying silent forever.
+    const reminderConfigChanged =
+      (dueDate !== undefined && dueDate !== (existing.dueDate ? existing.dueDate.toISOString().slice(0, 10) : null)) ||
+      (reminderDaysBefore !== undefined && reminderDaysBefore !== existing.reminderDaysBefore)
+
     const task = await prisma.privateTask.update({
       where: { id },
       data: {
@@ -50,7 +60,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         ...(description !== undefined && { description: description ? String(description) : null }),
         ...(column !== undefined && { column }),
         ...(priority !== undefined && { priority }),
-        ...(dueDate !== undefined && { dueDate: dueDate ? new Date(dueDate) : null }),
+        ...(dueDate !== undefined && { dueDate: nextDueDate }),
+        ...((dueDate !== undefined || reminderDaysBefore !== undefined) && { reminderDaysBefore: resolvedReminder }),
+        ...(reminderConfigChanged && { reminderSentAt: null }),
         ...(ticketId !== undefined && { ticketId: ticketId || null }),
       },
       include: { ticket: { select: { id: true, title: true, status: true } } },

@@ -223,6 +223,8 @@ model PrivateTask {
   column      PrivateTaskColumn @default(TODO)
   priority    Priority          @default(MEDIUM)
   dueDate     DateTime?
+  reminderDaysBefore Int?       // days before dueDate to send the email; null = no reminder
+  reminderSentAt     DateTime?  // set once sent, so the daily cron doesn't repeat it
   position    Int               @default(0)
   ticketId    String?
   ticket      Ticket?           @relation(fields: [ticketId], references: [id], onDelete: SetNull)

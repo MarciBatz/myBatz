@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const session = await requirePrivateTaskAccess(request)
-    const { title, description, column, priority, dueDate, ticketId } = await request.json()
+    const { title, description, column, priority, dueDate, reminderDaysBefore, ticketId } = await request.json()
 
     if (!title || !String(title).trim()) {
       return NextResponse.json({ error: 'A cím megadása kötelező' }, { status: 400 })
@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+    // A reminder needs a deadline to count back from.
+    const reminder = dueDate && Number.isInteger(reminderDaysBefore) ? reminderDaysBefore : null
 
     const task = await prisma.privateTask.create({
       data: {
@@ -75,6 +77,7 @@ export async function POST(request: NextRequest) {
         column: isPrivateTaskColumn(column) ? column : 'TODO',
         priority: priority || 'MEDIUM',
         dueDate: dueDate ? new Date(dueDate) : null,
+        reminderDaysBefore: reminder,
         ticketId: ticketId || null,
       },
       include: { ticket: { select: { id: true, title: true, status: true } } },

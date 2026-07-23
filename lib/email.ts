@@ -422,6 +422,33 @@ export async function sendPriorityReminderEmail(
   })
 }
 
+export async function sendPrivateTaskDeadlineReminderEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  task: { id: string; title: string; dueDate: Date }
+): Promise<void> {
+  const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const dueLabel = task.dueDate.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+
+  await sendEmail({
+    to: recipient.email,
+    subject: `Közelgő határidő: ${task.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6C5CE7;">⏰ Közelgő határidő</h2>
+        <p>Szia ${greeting},</p>
+        <p>Emlékeztetőül: az alábbi privát feladatod határideje közeleg.</p>
+        <div style="background:#f9fafb;border-left:4px solid #6C5CE7;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="font-size:18px;font-weight:bold;margin:0 0 4px;">${task.title}</p>
+          <p style="color:#666;margin:0;">Határidő: ${dueLabel}</p>
+        </div>
+        <p><a href="${appUrl}/private-tasks" style="color:#6C5CE7;font-weight:bold;">Privát feladataim megnyitása →</a></p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő — ezt az emlékeztetőt csak te látod, senki más nem kap róla értesítést.</p>
+      </div>
+    `,
+  })
+}
+
 // Renders the changelog's lightweight markup (## / ### / - / **bold**) as email HTML
 function renderChangelogHtml(content: string): string {
   const inline = renderInlineMarkup

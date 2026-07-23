@@ -11,6 +11,10 @@
     {
       "path": "/api/cron/office-week-reminder",
       "schedule": "15 7 * * 1"
+    },
+    {
+      "path": "/api/cron/private-task-reminders",
+      "schedule": "10 8 * * *"
     }
   ]
 }

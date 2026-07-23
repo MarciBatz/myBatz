@@ -40,6 +40,9 @@ export default function PrivateTaskModal({
   const [column, setColumn] = useState<PrivateTaskColumnValue>(task?.column ?? defaultColumn)
   const [priority, setPriority] = useState(task?.priority ?? 'MEDIUM')
   const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : '')
+  const [reminderDaysBefore, setReminderDaysBefore] = useState<string>(
+    task?.reminderDaysBefore != null ? String(task.reminderDaysBefore) : ''
+  )
   const [ticketId, setTicketId] = useState(task?.ticketId ?? defaultTicketId ?? '')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -109,6 +112,7 @@ export default function PrivateTaskModal({
     setColumn(task?.column ?? defaultColumn)
     setPriority(task?.priority ?? 'MEDIUM')
     setDueDate(task?.dueDate ? task.dueDate.slice(0, 10) : '')
+    setReminderDaysBefore(task?.reminderDaysBefore != null ? String(task.reminderDaysBefore) : '')
     setTicketId(task?.ticketId ?? defaultTicketId ?? '')
     setError('')
   }
@@ -147,6 +151,8 @@ export default function PrivateTaskModal({
       column,
       priority,
       dueDate: dueDate || null,
+      // No deadline → no reminder, whatever was selected.
+      reminderDaysBefore: dueDate && reminderDaysBefore !== '' ? Number(reminderDaysBefore) : null,
       ticketId: ticketId || null,
     }
     const res = task
@@ -206,6 +212,14 @@ export default function PrivateTaskModal({
                 <Chip label="Oszlop" value={COLUMN_LABELS[column]} dot={COLUMN_COLORS[column]} />
                 <Chip label="Prioritás" value={PRIORITY_LABELS[priority] || priority} />
                 {dueDate && <Chip label="Határidő" value={formatDate(dueDate)} />}
+                {dueDate && reminderDaysBefore !== '' && (
+                  <Chip label="Emlékeztető" value={
+                    reminderDaysBefore === '0' ? 'a határidő napján'
+                    : reminderDaysBefore === '1' ? '1 nappal előtte'
+                    : reminderDaysBefore === '7' ? '1 héttel előtte'
+                    : `${reminderDaysBefore} nappal előtte`
+                  } />
+                )}
                 {linkedTitle && <Chip label="Kapcsolt feladat" value={linkedTitle} wide />}
               </div>
             </>
@@ -241,10 +255,34 @@ export default function PrivateTaskModal({
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-gray-600 mb-1">Határidő</label>
-                  <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                  <input type="date" value={dueDate}
+                    onChange={e => {
+                      setDueDate(e.target.value)
+                      if (!e.target.value) setReminderDaysBefore('')
+                    }}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
                 </div>
               </div>
+
+              {dueDate && (
+                <div>
+                  <label className="block text-xs font-medium text-gray-600 mb-1">Emlékeztető e-mail</label>
+                  <select value={reminderDaysBefore} onChange={e => setReminderDaysBefore(e.target.value)}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-300">
+                    <option value="">Nincs emlékeztető</option>
+                    <option value="0">A határidő napján</option>
+                    <option value="1">1 nappal előtte</option>
+                    <option value="2">2 nappal előtte</option>
+                    <option value="3">3 nappal előtte</option>
+                    <option value="7">1 héttel előtte</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1.5">
+                    {reminderDaysBefore
+                      ? 'A rendszer minden nap reggel ellenőrzi a határidőket — az e-mail aznap megy ki, amikor eléred a beállított előidőt.'
+                      : 'Ha bekapcsolod, csak te kapsz róla e-mailt.'}
+                  </p>
+                </div>
+              )}
 
               <div>
                 <label className="block text-xs font-medium text-gray-600 mb-1">Kapcsolódó publikus feladat</label>

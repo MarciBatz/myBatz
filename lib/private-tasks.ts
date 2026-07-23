@@ -53,6 +53,7 @@ export interface PrivateTask {
   column: PrivateTaskColumnValue
   priority: string
   dueDate: string | null
+  reminderDaysBefore: number | null
   position: number
   ticketId: string | null
   ticket: { id: string; title: string; status: string } | null

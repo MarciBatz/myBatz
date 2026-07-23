@@ -51,6 +51,7 @@ export default function PrivateTasksPage() {
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
   const [archivingId, setArchivingId] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
 
   useEffect(() => {
     fetch('/api/auth/me').then(r => r.json()).then(d => {
@@ -196,7 +197,10 @@ export default function PrivateTasksPage() {
     else setError('Nem sikerült archiválni a feladatot')
   }
 
-  async function handleDelete(id: string) {
+  async function confirmDelete() {
+    if (!deleteTarget) return
+    const id = deleteTarget.id
+    setDeleteTarget(null)
     const previous = tasks
     setTasks(tasks.filter(t => t.id !== id))
     const res = await fetch(`/api/private-tasks/${id}`, { method: 'DELETE' })
@@ -341,7 +345,7 @@ export default function PrivateTasksPage() {
                               </button>
                             )}
                             <button
-                              onClick={e => { e.stopPropagation(); handleDelete(t.id) }}
+                              onClick={e => { e.stopPropagation(); setDeleteTarget({ id: t.id, title: t.title }) }}
                               title="Törlés"
                               className="text-gray-300 hover:text-red-400 p-0.5"
                             >
@@ -489,6 +493,26 @@ export default function PrivateTasksPage() {
                 style={{ background: '#6C5CE7' }}>
                 Feladat megnyitása
               </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirm */}
+      {deleteTarget && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4" onClick={() => setDeleteTarget(null)}>
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-xl" onClick={e => e.stopPropagation()}>
+            <div className="p-5">
+              <h3 className="font-semibold text-gray-900 mb-2">Feladat törlése</h3>
+              <p className="text-sm text-gray-600">
+                Biztosan törlöd a(z) <span className="font-medium text-gray-800">„{deleteTarget.title}”</span> feladatot? Ez nem vonható vissza.
+              </p>
+            </div>
+            <div className="px-5 py-4 border-t border-gray-100 flex justify-end gap-2">
+              <button onClick={() => setDeleteTarget(null)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Mégse</button>
+              <button onClick={confirmDelete}
+                className="px-4 py-2 text-sm font-medium text-white rounded-lg bg-red-500 hover:bg-red-600">Törlés</button>
             </div>
           </div>
         </div>
