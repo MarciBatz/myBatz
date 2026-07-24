@@ -28,6 +28,33 @@ interface ArchiveTask {
   comments: ArchiveComment[]
 }
 
+// Grouped by the same date the archive list is sorted by (doneAt, falling
+// back to archivedAt for tasks archived before doneAt was tracked).
+function monthKey(dateStr: string): string {
+  const d = new Date(dateStr)
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`
+}
+
+function monthLabel(key: string): string {
+  const [y, m] = key.split('-').map(Number)
+  return new Date(Date.UTC(y, m - 1, 1)).toLocaleDateString('hu-HU', { year: 'numeric', month: 'long' })
+}
+
+/** Splits the (already newest-first sorted) archive list into month buckets, preserving order. */
+function groupArchiveByMonth(tasks: ArchiveTask[]): { key: string; label: string; tasks: ArchiveTask[] }[] {
+  const groups: { key: string; label: string; tasks: ArchiveTask[] }[] = []
+  const byKey = new Map<string, ArchiveTask[]>()
+  for (const t of tasks) {
+    const key = monthKey(t.doneAt ?? t.archivedAt!)
+    if (!byKey.has(key)) {
+      byKey.set(key, [])
+      groups.push({ key, label: monthLabel(key), tasks: byKey.get(key)! })
+    }
+    byKey.get(key)!.push(t)
+  }
+  return groups
+}
+
 export default function PrivateTasksPage() {
   const router = useRouter()
   const [allowed, setAllowed] = useState(false)
@@ -50,6 +77,7 @@ export default function PrivateTasksPage() {
   const [archiveTasks, setArchiveTasks] = useState<ArchiveTask[]>([])
   const [archiveLoading, setArchiveLoading] = useState(false)
   const [expandedArchive, setExpandedArchive] = useState<string | null>(null)
+  const [expandedMonths, setExpandedMonths] = useState<Set<string>>(new Set())
   const [archivingId, setArchivingId] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; title: string } | null>(null)
 
@@ -181,9 +209,24 @@ export default function PrivateTasksPage() {
     setArchiveLoading(true)
     const res = await fetch('/api/private-tasks/archive')
     const d = await res.json()
-    setArchiveTasks(d.tasks || [])
+    const loaded: ArchiveTask[] = d.tasks || []
+    setArchiveTasks(loaded)
     setArchiveLoading(false)
+    // First load: open the most recent month so the view isn't empty-looking.
+    setExpandedMonths(prev => {
+      if (prev.size > 0 || loaded.length === 0) return prev
+      return new Set([monthKey(loaded[0].doneAt ?? loaded[0].archivedAt!)])
+    })
   }, [])
+
+  function toggleMonth(key: string) {
+    setExpandedMonths(prev => {
+      const next = new Set(prev)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
 
   useEffect(() => {
     if (scope.kind === 'archive') loadArchive()
@@ -411,28 +454,47 @@ export default function PrivateTasksPage() {
               ) : archiveTasks.length === 0 ? (
                 <p className="px-4 py-8 text-sm text-gray-400 text-center">Még nincs archivált feladat. A Kész oszlopban lévő feladatokat archiválhatod.</p>
               ) : (
-                <ul className="divide-y divide-gray-50">
-                  {archiveTasks.map(t => (
-                    <li key={t.id}>
-                      <button
-                        onClick={() => setExpandedArchive(expandedArchive === t.id ? null : t.id)}
-                        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
-                      >
-                        <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${expandedArchive === t.id ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
-                        <span className="flex-1 min-w-0">
-                          <span className="block text-sm font-medium text-gray-800 truncate">{t.title}</span>
-                          {t.ticket && <span className="block text-[11px] text-indigo-500 truncate">🔗 {t.ticket.title}</span>}
-                        </span>
-                        <span className="text-[11px] text-gray-400 shrink-0 text-right">
-                          Kész: {t.doneAt ? formatDate(t.doneAt) : (t.archivedAt ? formatDate(t.archivedAt) : '—')}
-                        </span>
-                      </button>
-                      {expandedArchive === t.id && (
-                        <ArchiveDetail task={t} />
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <div className="divide-y divide-gray-50">
+                  {groupArchiveByMonth(archiveTasks).map(group => {
+                    const open = expandedMonths.has(group.key)
+                    return (
+                      <div key={group.key}>
+                        <button
+                          onClick={() => toggleMonth(group.key)}
+                          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors bg-gray-50/50"
+                        >
+                          <svg className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${open ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                          <span className="flex-1 text-sm font-semibold text-gray-700 capitalize">{group.label}</span>
+                          <span className="text-[11px] text-gray-400 shrink-0">{group.tasks.length} feladat</span>
+                        </button>
+                        {open && (
+                          <ul className="divide-y divide-gray-50">
+                            {group.tasks.map(t => (
+                              <li key={t.id}>
+                                <button
+                                  onClick={() => setExpandedArchive(expandedArchive === t.id ? null : t.id)}
+                                  className="w-full flex items-center gap-3 pl-10 pr-4 py-3 text-left hover:bg-gray-50 transition-colors"
+                                >
+                                  <svg className={`w-3.5 h-3.5 text-gray-300 shrink-0 transition-transform ${expandedArchive === t.id ? 'rotate-90' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                  <span className="flex-1 min-w-0">
+                                    <span className="block text-sm font-medium text-gray-800 truncate">{t.title}</span>
+                                    {t.ticket && <span className="block text-[11px] text-indigo-500 truncate">🔗 {t.ticket.title}</span>}
+                                  </span>
+                                  <span className="text-[11px] text-gray-400 shrink-0 text-right">
+                                    Kész: {t.doneAt ? formatDate(t.doneAt) : (t.archivedAt ? formatDate(t.archivedAt) : '—')}
+                                  </span>
+                                </button>
+                                {expandedArchive === t.id && (
+                                  <ArchiveDetail task={t} />
+                                )}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           </div>
