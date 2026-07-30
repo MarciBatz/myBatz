@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import SavedRepliesSection from '@/components/SavedRepliesSection'
+import DepartmentsSection from '@/components/DepartmentsSection'
 
 interface Category { id: string; name: string }
 
@@ -253,6 +254,9 @@ export default function SettingsPage() {
         </div>
 
         {/* Saved replies */}
+        {/* Departments — ADMIN only, per the access model */}
+        {isAdmin && <DepartmentsSection />}
+
         <SavedRepliesSection />
 
         {/* Categories */}

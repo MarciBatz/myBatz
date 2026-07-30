@@ -1,21 +1,24 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { unauthorizedResponse, forbiddenResponse, type SessionUser } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { isPrivateTaskColumn } from '@/lib/private-tasks'
 import { writeAuditLog } from '@/lib/audit'
 import { logTaskCreated } from '@/lib/private-task-events'
+import { scopedTicketWhere } from '@/lib/departments-access'
 
 /**
  * A ticket may only be linked if the caller is still its assignee and it is
  * open. Anything else would let someone attach their board to a ticket they
  * have no part in, and surface their name on it.
  */
-async function assertLinkable(ticketId: string, userId: string): Promise<boolean> {
-  const ticket = await prisma.ticket.findFirst({
-    where: { id: ticketId, assigneeId: userId, status: { not: 'CLOSED' } },
-    select: { id: true },
+async function assertLinkable(ticketId: string, session: SessionUser): Promise<boolean> {
+  // Department scope on top of the existing assignee rule: a ticket the user
+  // can no longer see must not be linkable even if they're still its assignee.
+  const where = await scopedTicketWhere(session, {
+    id: ticketId, assigneeId: session.id, status: { not: 'CLOSED' },
   })
+  const ticket = await prisma.ticket.findFirst({ where, select: { id: true } })
   return !!ticket
 }
 
@@ -34,7 +37,7 @@ export async function GET(request: NextRequest) {
         orderBy: [{ position: 'asc' }, { createdAt: 'desc' }],
       }),
       prisma.ticket.findMany({
-        where: { assigneeId: session.id, status: { not: 'CLOSED' } },
+        where: await scopedTicketWhere(session, { assigneeId: session.id, status: { not: 'CLOSED' } }),
         select: { id: true, title: true, status: true, priority: true },
         orderBy: { updatedAt: 'desc' },
       }),
@@ -60,7 +63,7 @@ export async function POST(request: NextRequest) {
     if (column && !isPrivateTaskColumn(column)) {
       return NextResponse.json({ error: 'Ismeretlen oszlop' }, { status: 400 })
     }
-    if (ticketId && !(await assertLinkable(ticketId, session.id))) {
+    if (ticketId && !(await assertLinkable(ticketId, session))) {
       return NextResponse.json(
         { error: 'Csak olyan nyitott feladathoz kapcsolhatod, aminek te vagy a felelőse' },
         { status: 400 }

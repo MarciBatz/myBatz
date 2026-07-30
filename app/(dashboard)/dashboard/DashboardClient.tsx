@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
@@ -8,6 +8,9 @@ import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDate, displayName, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import FileUpload, { type UploadedFile } from '@/components/FileUpload'
+import DepartmentBadge from '@/components/DepartmentBadge'
+import DepartmentFilterBar, { type SelectableDepartment } from '@/components/DepartmentFilterBar'
+import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR } from '@/lib/departments'
 
 interface TodayData {
   shifts: { id: string; shopName: string | null; location: string | null; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
@@ -20,6 +23,8 @@ interface Stats { open: number; inProgress: number; awaiting: number; closed: nu
 interface Ticket {
   id: string; title: string; description: string; status: string; priority: string
   createdAt: string; updatedAt: string; pinned: boolean
+  visibility: string
+  department?: { id: string; name: string; color: string } | null
   category?: { id: string; name: string } | null
   assignee?: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null } | null
   createdBy: { id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string; avatarUrl?: string | null }
@@ -47,6 +52,17 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const [assigneeId, setAssigneeId] = useState('')
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
+  // Department scope. Empty array = "all departments I have access to".
+  const [departments, setDepartments] = useState<SelectableDepartment[]>([])
+  const [departmentIds, setDepartmentIds] = useState<string[]>([])
+  // Department ids that existed when the saved selection was last written, so
+  // ones created since can be recognised as new (see effectiveDepartmentIds).
+  const [knownDepartmentIds, setKnownDepartmentIds] = useState<string[]>([])
+  const departmentsLoaded = useRef(false)
+  // Only the fetched permission is stored; the ADMIN shortcut is derived below,
+  // so nothing is set synchronously inside an effect.
+  const [companyWidePermission, setCompanyWidePermission] = useState(false)
+  const canCompanyWide = user.role === 'ADMIN' || companyWidePermission
 
   // Create ticket modal
   const [showCreate, setShowCreate] = useState(false)
@@ -77,15 +93,61 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   }
 
   useEffect(() => {
-    fetch('/api/dashboard/stats').then(r => r.json()).then(d => setStats(d))
     fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
     fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
     fetch('/api/calendar/today').then(r => r.json()).then(d => setTodayData(d))
-  }, [])
+    fetch('/api/departments').then(r => r.json())
+      .then(d => setDepartments(d.departments || []))
+      .catch(() => {})
+      .finally(() => { departmentsLoaded.current = true })
+    // Company-wide creation is a per-user permission; ADMIN is handled by the
+    // derived flag above, so only non-admins need the lookup.
+    if (user.role !== 'ADMIN') {
+      fetch(`/api/users/${user.id}/settings`).then(r => r.json())
+        .then(s => setCompanyWidePermission(s.permissions?.canCreateCompanyWideTasks === true))
+        .catch(() => {})
+    }
+  }, [user.id, user.role])
+
+  // A department the user lost access to must not affect the view. Derived
+  // rather than written back into state, so a stale saved id simply has no
+  // effect instead of triggering a render loop. (The server also strips removed
+  // ids from the saved filter when an admin revokes access.)
+  //
+  // Departments that appeared *after* the saved selection was made are added to
+  // it. Without this, someone who once narrowed the filter would silently never
+  // see a new department's tickets — including ones assigned to them. An empty
+  // selection already means "all", so this only matters for explicit subsets.
+  //
+  // Memoised on the *contents*, not the array identity: this value is an effect
+  // dependency, and a fresh array each render would re-trigger the ticket fetch
+  // on every render.
+  const departmentIdsKey = departmentIds.join(',')
+  const departmentsKey = departments.map(d => d.id).join(',')
+  const knownDepartmentIdsKey = knownDepartmentIds.join(',')
+  const effectiveDepartmentIds = useMemo(() => {
+    const available = departmentsKey ? departmentsKey.split(',') : []
+    const selected = departmentIdsKey.split(',').filter(Boolean)
+    if (selected.length === 0) return []
+    if (available.length === 0) return selected
+
+    const known = new Set(knownDepartmentIdsKey.split(',').filter(Boolean))
+    const kept = selected.filter(d => available.includes(d))
+    // Only treat departments as new when we actually recorded a "known" set;
+    // an older saved filter without one must not select everything at once.
+    const added = known.size > 0 ? available.filter(d => !known.has(d)) : []
+    return [...new Set([...kept, ...added])]
+  }, [departmentIdsKey, departmentsKey, knownDepartmentIdsKey])
 
   const agentNameMap = buildUniqueDisplayNames(agents)
 
   const filtersReady = useRef(false)
+
+  const statsQuery = useCallback(() => {
+    const p = new URLSearchParams()
+    for (const d of effectiveDepartmentIds) p.append('departmentIds', d)
+    return p.toString()
+  }, [effectiveDepartmentIds])
 
   const loadTickets = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
@@ -96,6 +158,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     if (assigneeId) params.set('assigneeId', assigneeId)
     if (search) params.set('search', search)
     if (!showClosed) params.set('excludeClosed', 'true')
+    for (const d of effectiveDepartmentIds) params.append('departmentIds', d)
     params.set('page', String(page))
     params.set('pageSize', '20')
 
@@ -104,9 +167,15 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     setTickets(d.tickets || [])
     setTotal(d.total || 0)
     setLoading(false)
-  }, [status, priority, categoryId, assigneeId, search, page, showClosed])
+  }, [status, priority, categoryId, assigneeId, search, page, showClosed, effectiveDepartmentIds])
 
   useEffect(() => { loadTickets() }, [loadTickets])
+
+  // Stats follow the same department scope as the list, so the numbers match the rows.
+  useEffect(() => {
+    if (ticketsOnly) return
+    fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {})
+  }, [statsQuery, ticketsOnly])
 
   // Restore saved filters from the user's account on mount
   useEffect(() => {
@@ -121,36 +190,53 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           if (typeof f.assigneeId === 'string') setAssigneeId(f.assigneeId)
           if (typeof f.search === 'string') setSearch(f.search)
           if (typeof f.showClosed === 'boolean') setShowClosed(f.showClosed)
+          if (Array.isArray(f.departmentIds)) {
+            setDepartmentIds(f.departmentIds.filter((d: unknown) => typeof d === 'string'))
+          }
+          if (Array.isArray(f.knownDepartmentIds)) {
+            setKnownDepartmentIds(f.knownDepartmentIds.filter((d: unknown) => typeof d === 'string'))
+          }
         }
       })
       .catch(() => {})
       .finally(() => { filtersReady.current = true })
   }, [])
 
-  // Persist filters to the user's account whenever they change (debounced)
+  // Persist filters to the user's account whenever they change (debounced).
+  // Saves the *effective* department selection, so departments added by the rule
+  // above (and ones the user lost access to) are recorded rather than recomputed
+  // on every visit. Waits for the department list: persisting an empty "known"
+  // set would make every existing department look new on the next load.
+  const effectiveDepartmentIdsKey = effectiveDepartmentIds.join(',')
   useEffect(() => {
-    if (!filtersReady.current) return
+    if (!filtersReady.current || !departmentsLoaded.current) return
     const t = setTimeout(() => {
       fetch('/api/ticket-filters', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filters: { status, priority, categoryId, assigneeId, search, showClosed } }),
+        body: JSON.stringify({
+          filters: {
+            status, priority, categoryId, assigneeId, search, showClosed,
+            departmentIds: effectiveDepartmentIdsKey.split(',').filter(Boolean),
+            knownDepartmentIds: departmentsKey.split(',').filter(Boolean),
+          },
+        }),
       }).catch(() => {})
     }, 600)
     return () => clearTimeout(t)
-  }, [status, priority, categoryId, assigneeId, search, showClosed])
+  }, [status, priority, categoryId, assigneeId, search, showClosed, effectiveDepartmentIdsKey, departmentsKey])
 
   // Auto-refresh the list (and stats) so new tickets/updates appear without a manual reload
   useEffect(() => {
     const interval = setInterval(() => {
       loadTickets(true)
-      if (!ticketsOnly) fetch('/api/dashboard/stats').then(r => r.json()).then(d => setStats(d)).catch(() => {})
+      if (!ticketsOnly) fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {})
     }, 20000)
     return () => clearInterval(interval)
-  }, [loadTickets, ticketsOnly])
+  }, [loadTickets, ticketsOnly, statsQuery])
 
   function clearFilters() {
-    setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1)
+    setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1); setDepartmentIds([])
     fetch('/api/ticket-filters', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -249,6 +335,13 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
         ))}
       </div>}
 
+      {/* Department scope */}
+      <DepartmentFilterBar
+        departments={departments}
+        selectedIds={effectiveDepartmentIds}
+        onChange={ids => { setDepartmentIds(ids); setPage(1) }}
+      />
+
       {/* Filters */}
       <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-4 mb-4">
         <div className="flex flex-wrap gap-3">
@@ -311,6 +404,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                 <thead>
                   <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-50">
                     <th className="px-5 py-3 font-medium">Feladat</th>
+                    <th className="px-4 py-3 font-medium">Részleg</th>
                     <th className="px-4 py-3 font-medium">Kategória</th>
                     <th className="px-4 py-3 font-medium">Státusz</th>
                     <th className="px-4 py-3 font-medium">Prioritás</th>
@@ -335,6 +429,9 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                             </div>
                           </div>
                         </Link>
+                      </td>
+                      <td className="px-4 py-4">
+                        <DepartmentBadge visibility={ticket.visibility} department={ticket.department} />
                       </td>
                       <td className="px-4 py-4">
                         {ticket.category ? (
@@ -395,6 +492,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                     <PriorityBadge priority={ticket.priority} />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <DepartmentBadge visibility={ticket.visibility} department={ticket.department} size="xs" />
                     <StatusBadge status={ticket.status} />
                     {ticket.category && (
                       <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md">{ticket.category.name}</span>
@@ -459,8 +557,10 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
         <CreateTicketModal
           categories={categories}
           agents={agents}
+          departments={departments}
+          canCompanyWide={canCompanyWide}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); loadTickets(); fetch('/api/dashboard/stats').then(r => r.json()).then(d => setStats(d)) }}
+          onCreated={() => { setShowCreate(false); loadTickets(); fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {}) }}
         />
       )}
     </div>
@@ -470,15 +570,18 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 function CreateTicketModal({
   categories,
   agents,
+  departments,
+  canCompanyWide,
   onClose,
   onCreated,
 }: {
   categories: { id: string; name: string }[]
   agents: { id: string; name: string | null; email: string }[]
+  departments: SelectableDepartment[]
+  canCompanyWide: boolean
   onClose: () => void
   onCreated: () => void
 }) {
-  const modalAgentNameMap = buildUniqueDisplayNames(agents)
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('MEDIUM')
@@ -488,6 +591,40 @@ function CreateTicketModal({
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  // Target: exactly one department, or company-wide. A single-department user
+  // never has to choose; anyone with several must pick deliberately (no
+  // pre-selected default that could file a ticket in the wrong place).
+  const [target, setTarget] = useState<string>(departments.length === 1 ? departments[0].id : '')
+  const companyWide = target === COMPANY_WIDE
+  const [confirmCompanyWide, setConfirmCompanyWide] = useState(false)
+
+  // Assignee candidates for the chosen target, so you can't hand a department
+  // ticket to someone outside it. Only the fetched result is stored; the list
+  // actually shown is derived, which keeps this out of an effect-sync loop.
+  const [fetchedEligible, setFetchedEligible] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[] | null>(null)
+  useEffect(() => {
+    if (!target) return
+    const q = companyWide
+      ? `forVisibility=${COMPANY_WIDE}`
+      : `forDepartmentId=${encodeURIComponent(target)}`
+    let cancelled = false
+    fetch(`/api/users?${q}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setFetchedEligible(d.users || []) })
+      .catch(() => { if (!cancelled) setFetchedEligible([]) })
+    // A fast target switch must not let a stale response overwrite the new list.
+    return () => { cancelled = true }
+  }, [target, companyWide])
+
+  const eligible = target ? (fetchedEligible ?? []) : agents
+
+  // Derived, not synced: if the picked assignee isn't in the current target's
+  // list, treat the field as empty and say why. The server re-checks anyway.
+  const assigneeStillEligible = !assigneeId || eligible.length === 0 || eligible.some(u => u.id === assigneeId)
+  const effectiveAssigneeId = assigneeStillEligible ? assigneeId : ''
+
+  const modalAgentNameMap = buildUniqueDisplayNames(eligible)
+
   // Drafts
   const editorRef = useRef<RichTextEditorHandle>(null)
   const [draftId, setDraftId] = useState<string | null>(null)
@@ -496,6 +633,8 @@ function CreateTicketModal({
   const draftReady = useRef(false)
   const submittedRef = useRef(false)
   const creatingRef = useRef(false)
+  // Synchronous re-entry guard for the ticket POST (see createTicket).
+  const creatingTicketRef = useRef(false)
 
   const loadDrafts = useCallback(async () => {
     const r = await fetch('/api/ticket-drafts')
@@ -546,17 +685,40 @@ function CreateTicketModal({
     loadDrafts()
   }
 
-  async function handleSubmit(e: React.FormEvent) {
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setError('')
+    if (!description || description === '<p></p>') { setError('A leírás megadása kötelező'); return }
+    if (!target) { setError('Válaszd ki, melyik részleghez tartozik a feladat.'); return }
+    // Company-wide needs an explicit second confirmation; the form state is kept
+    // intact behind the dialog so "Visszalépek" loses nothing.
+    if (companyWide) { setConfirmCompanyWide(true); return }
+    void createTicket()
+  }
+
+  async function createTicket() {
+    // Guard with a ref, not `loading`: setState is asynchronous, so several
+    // clicks landing in the same tick would all read loading === false (and the
+    // button's disabled attribute wouldn't be applied yet either) and each fire
+    // its own POST. A ref flips synchronously, so only the first gets through.
+    if (creatingTicketRef.current || submittedRef.current) return
+    creatingTicketRef.current = true
+    setConfirmCompanyWide(false)
     setError('')
     setLoading(true)
 
-    if (!description || description === '<p></p>') { setError('A leírás megadása kötelező'); setLoading(false); return }
     try {
       const res = await fetch('/api/tickets', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, description, priority, categoryId: categoryId || null, assigneeId: assigneeId || null, attachments }),
+        body: JSON.stringify({
+          title, description, priority,
+          categoryId: categoryId || null,
+          assigneeId: effectiveAssigneeId || null,
+          visibility: companyWide ? COMPANY_WIDE : 'DEPARTMENT',
+          departmentId: companyWide ? null : target,
+          attachments,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error || 'Failed to create feladat'); return }
@@ -568,6 +730,8 @@ function CreateTicketModal({
       setError('An unexpected error occurred')
     } finally {
       setLoading(false)
+      // Released only on failure; a success closes the modal via onCreated().
+      if (!submittedRef.current) creatingTicketRef.current = false
     }
   }
 
@@ -631,23 +795,100 @@ function CreateTicketModal({
             </div>
           </div>
           <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Részleg</label>
+            {departments.length === 0 && !canCompanyWide ? (
+              <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                Nem tartozol egyetlen részleghez sem, ezért nem tudsz publikus feladatot létrehozni.
+                Kérj hozzáférést egy adminisztrátortól.
+              </p>
+            ) : departments.length === 1 && !canCompanyWide ? (
+              // One department and no company-wide right: nothing to choose, but
+              // still show where the ticket will land.
+              <div className="flex items-center gap-2 px-3 py-2 border border-gray-200 rounded-lg bg-gray-50">
+                <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: departments[0].color }} />
+                <span className="text-sm text-gray-700">{departments[0].name}</span>
+                <span className="text-xs text-gray-400 ml-auto">ide kerül a feladat</span>
+              </div>
+            ) : (
+              <select value={target} onChange={e => setTarget(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
+                <option value="">— Válassz részleget —</option>
+                {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                {canCompanyWide && <option disabled>──────────</option>}
+                {canCompanyWide && <option value={COMPANY_WIDE}>🌐 {COMPANY_WIDE_LABEL}</option>}
+              </select>
+            )}
+            {companyWide && (
+              <div className="mt-2 flex items-start gap-2 px-3 py-2 rounded-lg border"
+                style={{ background: '#F0FDFA', borderColor: COMPANY_WIDE_COLOR }}>
+                <svg className="w-4 h-4 shrink-0 mt-0.5" style={{ color: COMPANY_WIDE_COLOR }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01M5.07 19h13.86a2 2 0 001.74-2.99l-6.93-12a2 2 0 00-3.48 0l-6.93 12A2 2 0 005.07 19z" />
+                </svg>
+                <p className="text-xs font-medium" style={{ color: COMPANY_WIDE_COLOR }}>
+                  A feladatot a teljes cég minden felhasználója látni fogja.
+                </p>
+              </div>
+            )}
+          </div>
+          <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Felelős</label>
-            <select value={assigneeId} onChange={e => setAssigneeId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
+            <select value={effectiveAssigneeId} onChange={e => setAssigneeId(e.target.value)}
+              disabled={!target}
+              className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400">
               <option value="">Nincs hozzárendelve</option>
-              {agents.map(a => <option key={a.id} value={a.id}>{modalAgentNameMap[a.id] || a.email}</option>)}
+              {eligible.map(a => <option key={a.id} value={a.id}>{modalAgentNameMap[a.id] || a.email}</option>)}
             </select>
+            {!assigneeStillEligible && (
+              <p className="text-xs text-amber-600 mt-1.5">
+                A korábban kiválasztott felelős nem tartozik ehhez a részleghez, ezért nem lesz hozzárendelve. Válassz új felelőst.
+              </p>
+            )}
+            {!target && (
+              <p className="text-xs text-gray-400 mt-1.5">Először válaszd ki a részleget.</p>
+            )}
           </div>
           <div>
             <FileUpload value={attachments} onChange={setAttachments} />
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
-            <button type="submit" disabled={loading} className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60" style={{ background: '#6C5CE7' }}>
+            <button type="submit" disabled={loading || !target}
+              className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60" style={{ background: '#6C5CE7' }}>
               {loading ? 'Létrehozás...' : 'Feladat létrehozása'}
             </button>
           </div>
         </form>
+
+        {/* Company-wide final confirmation. Rendered over the form, which keeps
+            all its state, so "Visszalépek" loses nothing. */}
+        {confirmCompanyWide && (
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-black/40 p-4">
+            <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: '#CCFBF1' }}>
+                  <svg className="w-5 h-5" style={{ color: COMPANY_WIDE_COLOR }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <h3 className="text-base font-semibold text-gray-900">Teljes céges feladat</h3>
+              </div>
+              <p className="text-sm text-gray-600 mb-5">
+                Biztosan az egész cég számára látható feladatot szeretnél létrehozni?
+              </p>
+              <div className="flex flex-col sm:flex-row justify-end gap-2">
+                <button type="button" onClick={() => setConfirmCompanyWide(false)}
+                  className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                  Visszalépek
+                </button>
+                <button type="button" onClick={() => void createTicket()} disabled={loading}
+                  className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                  style={{ background: COMPANY_WIDE_COLOR }}>
+                  {loading ? 'Létrehozás...' : 'Igen, létrehozom a teljes cégnek'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Drafts panel */}
         {showDrafts && (

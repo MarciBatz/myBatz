@@ -7,6 +7,7 @@ export type PermissionKey =
   | 'canDeleteTickets'
   | 'canDeleteComments'
   | 'canManageCategories'
+  | 'canCreateCompanyWideTasks'
 
 export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   canRegenerateOfficeSchedule: 'Irodai hetes beosztás újragenerálása',
@@ -15,6 +16,7 @@ export const PERMISSION_LABELS: Record<PermissionKey, string> = {
   canDeleteTickets: 'Feladatok törlése',
   canDeleteComments: 'Hozzászólások törlése',
   canManageCategories: 'Kategóriák kezelése',
+  canCreateCompanyWideTasks: 'Teljes céges feladat létrehozása',
 }
 
 export async function hasPermission(

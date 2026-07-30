@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSession, unauthorizedResponse } from '@/lib/auth'
+import { canAccessTicket, notFoundResponse } from '@/lib/departments-access'
 import { writeFile, mkdir } from 'fs/promises'
 import path from 'path'
 
@@ -10,8 +11,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id } = await params
 
     const ticket = await prisma.ticket.findUnique({ where: { id } })
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
+    if (!ticket || !(await canAccessTicket(user, id))) {
+      return notFoundResponse()
     }
 
     const formData = await request.formData()

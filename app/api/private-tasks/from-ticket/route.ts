@@ -5,6 +5,7 @@ import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { writeAuditLog } from '@/lib/audit'
 import { logTaskCreated } from '@/lib/private-task-events'
 import { htmlToPlainText } from '@/lib/utils'
+import { scopedTicketWhere } from '@/lib/departments-access'
 
 /**
  * Creates a private task from a ticket the caller is assigned to, copying the
@@ -27,7 +28,9 @@ export async function POST(request: NextRequest) {
 
     // Must be the current assignee of an open ticket — same rule as linking.
     const ticket = await prisma.ticket.findFirst({
-      where: { id: ticketId, assigneeId: session.id, status: { not: 'CLOSED' } },
+      where: await scopedTicketWhere(session, {
+        id: ticketId, assigneeId: session.id, status: { not: 'CLOSED' },
+      }),
       select: { id: true, title: true, description: true, priority: true },
     })
     if (!ticket) {

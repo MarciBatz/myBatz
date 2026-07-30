@@ -11,6 +11,8 @@ import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplay
 import { COLUMN_LABELS, COLUMN_COLORS, PRIVATE_TASK_COLUMNS, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
+import DepartmentBadge from '@/components/DepartmentBadge'
+import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR, type DepartmentSummary } from '@/lib/departments'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
 interface Attachment { id: string; fileUrl: string; fileName: string; fileSize: number; mimeType?: string | null }
@@ -23,6 +25,8 @@ interface Comment {
 interface Activity { id: string; action: string; oldValue: string | null; newValue: string | null; createdAt: string; user: NamedUser }
 interface Ticket {
   id: string; title: string; description: string; status: string; priority: string; createdAt: string; updatedAt: string
+  visibility: string
+  department?: DepartmentSummary | null
   category?: { id: string; name: string } | null
   assignee?: NamedUser | null
   createdBy: NamedUser
@@ -46,6 +50,14 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   const [nudgeConfirming, setNudgeConfirming] = useState(false)
   const [nudging, setNudging] = useState(false)
   const [nudgeError, setNudgeError] = useState('')
+  // ADMIN-only department / visibility change.
+  const [departments, setDepartments] = useState<DepartmentSummary[]>([])
+  // Derived from the ticket; the override only holds the value being saved, so
+  // there's no effect syncing state to props.
+  const [deptOverride, setDeptOverride] = useState<string | null>(null)
+  const [confirmCompanyWide, setConfirmCompanyWide] = useState(false)
+  const [savingDept, setSavingDept] = useState(false)
+  const [deptError, setDeptError] = useState('')
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
@@ -79,10 +91,25 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     return () => clearInterval(interval)
   }, [loadTicket])
 
+  // Assignee + @mention candidates, scoped to this ticket's visibility: only
+  // people who can actually see it. Reloads if an admin changes the department.
+  useEffect(() => {
+    if (!ticket) return
+    const q = ticket.visibility === COMPANY_WIDE
+      ? `forVisibility=${COMPANY_WIDE}`
+      : ticket.department ? `forDepartmentId=${encodeURIComponent(ticket.department.id)}` : ''
+    fetch(`/api/users${q ? `?${q}` : ''}`)
+      .then(r => r.json())
+      .then(d => setAgents(d.users || []))
+      .catch(() => {})
+  }, [ticket?.visibility, ticket?.department?.id, ticket])
+
+
+
   useEffect(() => {
     loadTicket()
     fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
-    fetch('/api/users').then(r => r.json()).then(d => setAgents(d.users || []))
+    fetch('/api/departments').then(r => r.json()).then(d => setDepartments(d.departments || [])).catch(() => {})
     fetch('/api/saved-replies').then(r => r.json()).then(d => setSavedReplies(d.replies || []))
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       if (d.user?.role === 'ADMIN') { setCanDeleteComments(true); setCanDeleteTickets(true); return }
@@ -142,6 +169,39 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     }
   }
 
+  function onDeptChange(next: string) {
+    setDeptError('')
+    setDeptOverride(next)
+    // Moving to company-wide needs the same emphatic confirmation as creating one.
+    if (next === COMPANY_WIDE) { setConfirmCompanyWide(true); return }
+    void saveDepartment(next)
+  }
+
+  async function saveDepartment(next: string) {
+    if (savingDept) return
+    setConfirmCompanyWide(false)
+    setSavingDept(true)
+    setDeptError('')
+    const res = await fetch(`/api/tickets/${ticketId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(
+        next === COMPANY_WIDE
+          ? { visibility: COMPANY_WIDE, departmentId: null }
+          : { visibility: 'DEPARTMENT', departmentId: next }
+      ),
+    })
+    setSavingDept(false)
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}))
+      setDeptError(d.error || 'Nem sikerült módosítani a részleget.')
+      setDeptOverride(null) // fall back to the ticket's actual value
+      return
+    }
+    setDeptOverride(null)
+    loadTicket()
+  }
+
   function onAddClick() {
     // Already recorded once → confirm before duplicating.
     if (viewerLinkedCount > 0) { setConfirmReAdd(true); return }
@@ -185,6 +245,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
       status_changed: `státuszt változtatott → ${activity.newValue}`,
       priority_changed: `prioritást változtatott → ${activity.newValue}`,
       assignee_changed: 'felelőst változtatott',
+      department_changed: `részleget változtatott: ${activity.oldValue} → ${activity.newValue}`,
       category_changed: 'kategóriát változtatott',
       nudge_sent: `emlékeztette ${activity.newValue} felhasználót, hogy foglalkozzon a feladattal`,
     }
@@ -193,6 +254,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
 
   if (loading) return <div className="p-6 text-gray-400">Betöltés...</div>
   if (!ticket) return <div className="p-6 text-gray-600">A feladat nem található</div>
+
+  const ticketDeptValue = ticket.visibility === COMPANY_WIDE ? COMPANY_WIDE : (ticket.department?.id ?? '')
+  const deptTarget = deptOverride ?? ticketDeptValue
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
@@ -223,7 +287,10 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             <div className="flex items-start gap-3 mb-4">
               <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} lastName={ticket.createdBy.lastName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} size="md" />
               <div className="flex-1 min-w-0">
-                <h1 className="text-xl font-bold text-gray-900 mb-1">{ticket.title}</h1>
+                <div className="flex items-start gap-2 flex-wrap mb-1">
+                  <h1 className="text-xl font-bold text-gray-900">{ticket.title}</h1>
+                  <DepartmentBadge visibility={ticket.visibility} department={ticket.department} />
+                </div>
                 <p className="text-xs text-gray-400">
                   Létrehozta: {fullDisplayName(ticket.createdBy) || ticket.createdBy.email} · {formatDateTime(ticket.createdAt)}
                 </p>
@@ -481,6 +548,24 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 )}
               </div>
               <div>
+                <label className="text-xs text-gray-500 block mb-1">Részleg</label>
+                {user.role === 'ADMIN' ? (
+                  <>
+                    <select value={deptTarget} onChange={e => onDeptChange(e.target.value)} disabled={savingDept}
+                      className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400 disabled:opacity-60">
+                      {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                      <option disabled>──────────</option>
+                      <option value={COMPANY_WIDE}>🌐 {COMPANY_WIDE_LABEL}</option>
+                    </select>
+                    {deptError && <p className="text-xs text-red-500 mt-1.5">{deptError}</p>}
+                  </>
+                ) : (
+                  <div className="px-2 py-1.5">
+                    <DepartmentBadge visibility={ticket.visibility} department={ticket.department} />
+                  </div>
+                )}
+              </div>
+              <div>
                 <label className="text-xs text-gray-500 block mb-1">Felelős</label>
                 {user.role === 'READER' ? (
                   <p className="text-sm text-gray-700 px-2 py-1.5">{ticket.assignee ? (fullDisplayName(ticket.assignee) || ticket.assignee.email) : '—'}</p>
@@ -572,6 +657,40 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
               <button onClick={deleteComment} disabled={deletingComment}
                 className="px-4 py-2 text-sm text-white font-medium rounded-xl bg-red-500 hover:bg-red-600 disabled:opacity-60">
                 {deletingComment ? 'Törlés...' : 'Igen, töröld'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Company-wide switch confirm — same emphasis as at creation time */}
+      {confirmCompanyWide && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+          onClick={() => { setConfirmCompanyWide(false); setDeptOverride(null) }}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0" style={{ background: '#CCFBF1' }}>
+                <svg className="w-5 h-5" style={{ color: COMPANY_WIDE_COLOR }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-semibold text-gray-900">Teljes céges láthatóság</h3>
+            </div>
+            <p className="text-sm text-gray-600 mb-2">
+              A feladatot a teljes cég minden felhasználója látni fogja.
+            </p>
+            <p className="text-sm text-gray-600 mb-6">
+              Biztosan az egész cég számára látható feladattá szeretnéd módosítani?
+            </p>
+            <div className="flex flex-col sm:flex-row justify-end gap-2">
+              <button onClick={() => { setConfirmCompanyWide(false); setDeptOverride(null) }}
+                className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">
+                Visszalépek
+              </button>
+              <button onClick={() => void saveDepartment(COMPANY_WIDE)} disabled={savingDept}
+                className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60"
+                style={{ background: COMPANY_WIDE_COLOR }}>
+                {savingDept ? 'Módosítás...' : 'Igen, a teljes cégnek'}
               </button>
             </div>
           </div>

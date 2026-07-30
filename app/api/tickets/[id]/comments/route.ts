@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { requireReadWrite, unauthorizedResponse } from '@/lib/auth'
+import { requireReadWrite, unauthorizedResponse , forbiddenResponse} from '@/lib/auth'
 import { sendNewCommentEmail } from '@/lib/email'
 import { fullDisplayName } from '@/lib/utils'
+import { canAccessTicket, notFoundResponse, getEligibleTicketUsers } from '@/lib/departments-access'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -40,9 +41,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         assignee: { select: { id: true, email: true, name: true, nickname: true } },
       },
     })
-    if (!ticket) {
-      return NextResponse.json({ error: 'A ticket nem található' }, { status: 404 })
+    if (!ticket || !(await canAccessTicket(user, id))) {
+      return notFoundResponse()
     }
+
+    // Everyone who may be mentioned/notified on this ticket. Used below so a
+    // crafted @mention can't reach someone outside the ticket's department.
+    const eligible = await getEligibleTicketUsers(ticket)
+    const eligibleIds = new Set(eligible.map(u => u.id))
 
     const comment = await prisma.comment.create({
       data: {
@@ -108,15 +114,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const alreadyNotified = new Set(notifyList.map(u => u.id))
         const everyoneTag = mentionedIds.includes('everyone')
 
-        const mentionedUsers = everyoneTag
-          ? await prisma.user.findMany({
-              where: { NOT: { id: user.id }, status: 'ACTIVE' },
-              select: { id: true, email: true, name: true, nickname: true },
-            })
-          : await prisma.user.findMany({
-              where: { id: { in: mentionedIds }, NOT: { id: user.id } },
-              select: { id: true, email: true, name: true, nickname: true },
-            })
+        // "@mindenki" means everyone who can see *this* ticket, not every user.
+        const mentionedUsers = (everyoneTag
+          ? eligible
+          : eligible.filter(u => mentionedIds.includes(u.id))
+        ).filter(u => u.id !== user.id && eligibleIds.has(u.id))
 
         const newMentions = mentionedUsers.filter(u => !alreadyNotified.has(u.id))
         if (newMentions.length > 0) {
@@ -137,6 +139,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ comment }, { status: 201 })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
+    if (error instanceof Error && error.message === 'FORBIDDEN') return forbiddenResponse('Ehhez a művelethez nincs jogosultságod.')
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.issues[0]?.message || 'Érvénytelen adat' }, { status: 400 })
     }

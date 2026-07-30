@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { requireReadWrite, unauthorizedResponse } from '@/lib/auth'
+import { requireReadWrite, unauthorizedResponse , forbiddenResponse} from '@/lib/auth'
 import { fullDisplayName } from '@/lib/utils'
 import { sendNudgeEmail } from '@/lib/email'
+import { canAccessTicket, notFoundResponse } from '@/lib/departments-access'
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -16,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       },
     })
 
-    if (!ticket) return NextResponse.json({ error: 'A ticket nem található' }, { status: 404 })
+    if (!ticket || !(await canAccessTicket(user, id))) return notFoundResponse()
     if (!ticket.assignee) return NextResponse.json({ error: 'A ticketnek nincs felelőse' }, { status: 400 })
     if (ticket.assignee.id === user.id) return NextResponse.json({ error: 'Saját magadnak nem küldhetsz emlékeztetőt' }, { status: 400 })
 
@@ -46,6 +47,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     return NextResponse.json({ ok: true })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
+    if (error instanceof Error && error.message === 'FORBIDDEN') return forbiddenResponse('Ehhez a művelethez nincs jogosultságod.')
     console.error('Nudge error:', error)
     return NextResponse.json({ error: 'Szerverhiba történt' }, { status: 500 })
   }

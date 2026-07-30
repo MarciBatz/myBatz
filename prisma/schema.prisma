@@ -33,6 +33,48 @@ enum Priority {
   CRITICAL
 }
 
+/// How widely a public ticket is visible. DEPARTMENT means exactly one
+/// department (departmentId required); COMPANY_WIDE means everyone
+/// (departmentId must be null). A DB CHECK constraint enforces the pairing so
+/// `departmentId = null` can never be an ambiguous "unknown".
+enum TicketVisibility {
+  DEPARTMENT
+  COMPANY_WIDE
+}
+
+/// A department owns public tickets and has members. "Teljes cég" is NOT a row
+/// here — it is the COMPANY_WIDE visibility value, so it can't be renamed,
+/// deleted or assigned to users.
+model Department {
+  id   String @id @default(cuid())
+  name String @unique
+  /// Lowercased `name`, written by the application (lib/departments.ts) and
+  /// uniquely indexed, so "Logisztika" and "logisztika" can't coexist. A
+  /// stored column rather than a LOWER(name) index because LOWER() only folds
+  /// non-ASCII (é/É) under a UTF-8 aware DB collation — this stays correct
+  /// regardless of how the database was initialised.
+  nameNormalized String @unique
+  color          String @default("#6C5CE7")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  members UserDepartment[]
+  tickets Ticket[]
+}
+
+/// Many-to-many join between users and departments.
+model UserDepartment {
+  id           String     @id @default(cuid())
+  userId       String
+  departmentId String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@unique([userId, departmentId])
+  @@index([departmentId])
+}
+
 model User {
   id           String     @id @default(cuid())
   email        String     @unique
@@ -59,6 +101,7 @@ model User {
   vacations       Vacation[]
   ticketDrafts    TicketDraft[]
   privateTasks    PrivateTask[]
+  departments     UserDepartment[]
   preferences     UserPreferences?
   permissions     UserPermissions?
 }
@@ -95,6 +138,13 @@ model Ticket {
   status      TicketStatus @default(OPEN)
   priority    Priority     @default(MEDIUM)
   pinned      Boolean      @default(false)
+  // Visibility scope. DEPARTMENT ⇒ departmentId set; COMPANY_WIDE ⇒ null.
+  visibility   TicketVisibility @default(DEPARTMENT)
+  departmentId String?
+  // Restrict: a department that still has tickets must not be deletable. SET NULL
+  // (Prisma's default for an optional relation) would leave visibility
+  // 'DEPARTMENT' with a null departmentId and break the DB CHECK constraint.
+  department   Department?      @relation(fields: [departmentId], references: [id], onDelete: Restrict)
   categoryId  String?
   category    Category?    @relation(fields: [categoryId], references: [id])
   assigneeId  String?
@@ -108,6 +158,9 @@ model Ticket {
   privateTasks PrivateTask[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
+
+  @@index([visibility, departmentId])
+  @@index([departmentId])
 }
 
 model Comment {
@@ -291,6 +344,7 @@ model UserPermissions {
   canDeleteTickets            Boolean @default(false)
   canDeleteComments           Boolean @default(false)
   canManageCategories         Boolean @default(false)
+  canCreateCompanyWideTasks   Boolean @default(false)
 }
 
 model TicketDraft {

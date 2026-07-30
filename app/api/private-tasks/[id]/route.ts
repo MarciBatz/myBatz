@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
+import { unauthorizedResponse, forbiddenResponse, type SessionUser } from '@/lib/auth'
 import { requirePrivateTaskAccess } from '@/lib/private-tasks-auth'
 import { isPrivateTaskColumn, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import { writeAuditLog } from '@/lib/audit'
 import { logTaskMoved } from '@/lib/private-task-events'
+import { scopedTicketWhere } from '@/lib/departments-access'
 
-async function assertLinkable(ticketId: string, userId: string): Promise<boolean> {
-  const ticket = await prisma.ticket.findFirst({
-    where: { id: ticketId, assigneeId: userId, status: { not: 'CLOSED' } },
-    select: { id: true },
+async function assertLinkable(ticketId: string, session: SessionUser): Promise<boolean> {
+  const where = await scopedTicketWhere(session, {
+    id: ticketId, assigneeId: session.id, status: { not: 'CLOSED' },
   })
+  const ticket = await prisma.ticket.findFirst({ where, select: { id: true } })
   return !!ticket
 }
 
@@ -36,7 +37,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (column !== undefined && !isPrivateTaskColumn(column)) {
       return NextResponse.json({ error: 'Ismeretlen oszlop' }, { status: 400 })
     }
-    if (ticketId && !(await assertLinkable(ticketId, session.id))) {
+    if (ticketId && !(await assertLinkable(ticketId, session))) {
       return NextResponse.json(
         { error: 'Csak olyan nyitott feladathoz kapcsolhatod, aminek te vagy a felelőse' },
         { status: 400 }

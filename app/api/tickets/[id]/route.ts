@@ -4,6 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { requireSession, requireReadWrite, getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { sendTicketUpdateEmail } from '@/lib/email'
 import { hasPermission } from '@/lib/permissions'
+import { COMPANY_WIDE } from '@/lib/departments'
+import { canAccessTicket, notFoundResponse, resolveTicketTarget, isEligibleAssignee } from '@/lib/departments-access'
 
 const updateSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -13,6 +15,9 @@ const updateSchema = z.object({
   categoryId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
   pinned: z.boolean().optional(),
+  // ADMIN-only; validated below.
+  visibility: z.enum(['DEPARTMENT', 'COMPANY_WIDE']).optional(),
+  departmentId: z.string().optional().nullable(),
 })
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -24,6 +29,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       where: { id },
       include: {
         category: true,
+        department: { select: { id: true, name: true, color: true } },
         assignee: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true, lastSeenAt: true } },
         createdBy: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true, lastSeenAt: true } },
         comments: {
@@ -43,8 +49,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       },
     })
 
-    if (!ticket) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
+    // Same 404 whether the ticket is missing or out of the user's department
+    // scope — the response must not reveal that an inaccessible ticket exists.
+    if (!ticket || !(await canAccessTicket(user, id))) {
+      return notFoundResponse()
     }
 
     // READER: filter out internal comments
@@ -108,13 +116,55 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       include: {
         assignee: { select: { id: true, name: true, email: true } },
         createdBy: { select: { id: true, name: true, email: true } },
+        department: { select: { id: true, name: true } },
       },
     })
 
-    if (!existing) {
-      return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
+    if (!existing || !(await canAccessTicket(user, id))) {
+      return notFoundResponse()
     }
 
+    // Visibility / department change is ADMIN-only.
+    const wantsTargetChange = data.visibility !== undefined || data.departmentId !== undefined
+    if (wantsTargetChange && user.role !== 'ADMIN') {
+      return NextResponse.json(
+        { error: 'A feladat részlegét csak adminisztrátor módosíthatja.' },
+        { status: 403 }
+      )
+    }
+
+    let newTarget: { visibility: 'DEPARTMENT' | 'COMPANY_WIDE'; departmentId: string | null } | null = null
+    if (wantsTargetChange) {
+      const resolved = await resolveTicketTarget(
+        user,
+        {
+          visibility: data.visibility ?? existing.visibility,
+          departmentId: data.departmentId ?? existing.departmentId,
+        },
+        true // ADMIN always may set company-wide
+      )
+      if (!resolved.ok) return NextResponse.json({ error: resolved.error }, { status: 400 })
+      newTarget = { visibility: resolved.visibility, departmentId: resolved.departmentId }
+    }
+
+    // Whatever the ticket looks like after this update, the assignee must be
+    // able to see it. Checked against the *resulting* target, not the old one.
+    const effectiveTarget = newTarget ?? { visibility: existing.visibility, departmentId: existing.departmentId }
+    const effectiveAssigneeId = data.assigneeId !== undefined ? data.assigneeId : existing.assigneeId
+    if (effectiveAssigneeId && !(await isEligibleAssignee(effectiveAssigneeId, effectiveTarget))) {
+      return NextResponse.json(
+        {
+          error: newTarget
+            ? 'A feladat jelenlegi felelőse nem tartozik a kiválasztott részleghez. Válassz másik felelőst, vagy vedd le a felelőst a feladatról.'
+            : 'A kiválasztott felelős nem tartozik ehhez a részleghez.',
+          reason: 'ASSIGNEE_NOT_IN_DEPARTMENT',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Field update and its activity log entries commit together, so a department
+    // change can never land without its audit trail.
     const ticket = await prisma.ticket.update({
       where: { id },
       data: {
@@ -125,11 +175,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
         ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId }),
         ...(data.pinned !== undefined && { pinned: data.pinned }),
+        ...(newTarget !== null && { visibility: newTarget.visibility, departmentId: newTarget.departmentId }),
       },
       include: {
         assignee: { select: { id: true, name: true, email: true } },
         createdBy: { select: { id: true, name: true, email: true } },
         category: true,
+        department: { select: { id: true, name: true, color: true } },
       },
     })
 
@@ -155,6 +207,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'category_changed', oldValue: existing.categoryId || 'none', newValue: data.categoryId || 'none' })
       // kategória változás nem küld e-mailt
+    }
+    if (newTarget && (newTarget.visibility !== existing.visibility || newTarget.departmentId !== existing.departmentId)) {
+      // Human-readable names in the log, not raw ids — the Napló shows these directly.
+      const oldLabel = existing.visibility === COMPANY_WIDE ? 'Teljes cég' : (existing.department?.name ?? '—')
+      const newLabel = newTarget.visibility === COMPANY_WIDE ? 'Teljes cég' : (ticket.department?.name ?? '—')
+      activityLogs.push({ ticketId: id, userId: user.id, action: 'department_changed', oldValue: oldLabel, newValue: newLabel })
+      changes.push(`Részleg: ${oldLabel} → ${newLabel}`)
     }
 
     if (activityLogs.length > 0) {
@@ -197,7 +256,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
 
     const { id } = await params
     const existing = await prisma.ticket.findUnique({ where: { id } })
-    if (!existing) return NextResponse.json({ error: 'Ticket not found' }, { status: 404 })
+    if (!existing || !(await canAccessTicket(user, id))) return notFoundResponse()
 
     await prisma.ticket.delete({ where: { id } })
     return NextResponse.json({ success: true })
