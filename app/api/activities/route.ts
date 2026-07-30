@@ -19,7 +19,12 @@ export async function GET(request: NextRequest) {
         where,
         include: {
           user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
-          ticket: { select: { id: true, title: true } },
+          ticket: {
+            select: {
+              id: true, title: true, visibility: true,
+              department: { select: { name: true, color: true } },
+            },
+          },
         },
         orderBy: { createdAt: 'desc' },
         skip: (page - 1) * pageSize,

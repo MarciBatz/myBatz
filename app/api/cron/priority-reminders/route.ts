@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendPriorityReminderEmail, formatIdleDays } from '@/lib/email'
+import { canAccessTicket } from '@/lib/departments-access'
 
 // How long a ticket may sit without movement before its assignee is reminded.
 const WINDOW_HOURS: Record<string, number> = {
@@ -19,8 +20,8 @@ export async function GET(_request: NextRequest) {
     const tickets = await prisma.ticket.findMany({
       where: { status: { not: 'CLOSED' } },
       include: {
-        assignee: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true } },
-        createdBy: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true } },
+        assignee: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true, role: true } },
+        createdBy: { select: { id: true, email: true, name: true, firstName: true, lastName: true, nickname: true, role: true } },
         // Commenting doesn't touch ticket.updatedAt, so the newest comment is
         // checked separately when working out when the ticket last moved.
         comments: { select: { createdAt: true }, orderBy: { createdAt: 'desc' }, take: 1 },
@@ -58,6 +59,15 @@ export async function GET(_request: NextRequest) {
       const unassigned = !ticket.assignee
       const recipient = ticket.assignee ?? ticket.createdBy
       if (!recipient) {
+        skipped++
+        continue
+      }
+
+      // Don't remind someone about a ticket they can no longer open: if the
+      // assignee (or creator) lost access to its department, the email would
+      // link to a 404. Their reminder resumes if access is restored.
+      const canSee = await canAccessTicket({ id: recipient.id, role: recipient.role }, ticket.id)
+      if (!canSee) {
         skipped++
         continue
       }

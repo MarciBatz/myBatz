@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import Avatar from '@/components/Avatar'
 import { formatDate, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
+import { badgeColors, type DepartmentSummary } from '@/lib/departments'
+import Link from 'next/link'
 
 interface AgentUser {
   id: string; email: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; role: string; status: string; avatarUrl: string | null; createdAt: string; lastSeenAt: string | null
@@ -23,6 +25,7 @@ interface UserSettings {
     canDeleteTickets: boolean
     canDeleteComments: boolean
     canManageCategories: boolean
+    canCreateCompanyWideTasks: boolean
   } | null
 }
 
@@ -56,6 +59,12 @@ export default function AgentsPage() {
 
   // Settings modal
   const [settingsTarget, setSettingsTarget] = useState<AgentUser | null>(null)
+  // Department membership editing (ADMIN only).
+  const [allDepartments, setAllDepartments] = useState<DepartmentSummary[]>([])
+  const [userDeptIds, setUserDeptIds] = useState<string[]>([])
+  const [deptSaveError, setDeptSaveError] = useState('')
+  const [blockingTickets, setBlockingTickets] = useState<{ id: string; title: string; departmentName: string }[]>([])
+  const [deptEmailNote, setDeptEmailNote] = useState('')
   const [settings, setSettings] = useState<UserSettings | null>(null)
   const [settingsLoading, setSettingsLoading] = useState(false)
   const [settingsSaving, setSettingsSaving] = useState(false)
@@ -187,24 +196,67 @@ export default function AgentsPage() {
     const defaultPerms = {
       canRegenerateOfficeSchedule: false, canManageEmailNotifications: false,
       canSendInvites: false, canDeleteTickets: false, canDeleteComments: false, canManageCategories: false,
+      canCreateCompanyWideTasks: false,
     }
     setSettings({
       preferences: { ...defaults, ...(data.preferences || {}) },
       permissions: { ...defaultPerms, ...(data.permissions || {}) },
     })
+
+    // Departments: the full list plus this user's current memberships.
+    setDeptSaveError('')
+    setBlockingTickets([])
+    setDeptEmailNote('')
+    const [deptRes, memberRes] = await Promise.all([
+      fetch('/api/departments').then(r => r.json()).catch(() => ({})),
+      fetch(`/api/users/${user.id}/departments`).then(r => r.json()).catch(() => ({})),
+    ])
+    setAllDepartments(deptRes.all || deptRes.departments || [])
+    setUserDeptIds(memberRes.departmentIds || [])
+
     setSettingsLoading(false)
+  }
+
+  function toggleUserDept(id: string) {
+    setDeptSaveError('')
+    setBlockingTickets([])
+    setUserDeptIds(prev => prev.includes(id) ? prev.filter(d => d !== id) : [...prev, id])
   }
 
   async function saveSettings() {
     if (!settingsTarget || !settings) return
     setSettingsSaving(true)
+    setDeptSaveError('')
+    setBlockingTickets([])
+
+    // Departments first: if a removal is blocked we stop here and keep the modal
+    // open with the offending tickets listed, rather than half-saving.
+    const deptRes = await fetch(`/api/users/${settingsTarget.id}/departments`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ departmentIds: userDeptIds }),
+    })
+    if (!deptRes.ok) {
+      const d = await deptRes.json().catch(() => ({}))
+      setDeptSaveError(d.error || 'Nem sikerült menteni a részlegeket.')
+      setBlockingTickets(d.blockingTickets || [])
+      setSettingsSaving(false)
+      return
+    }
+    const deptData = await deptRes.json().catch(() => ({}))
+    if (deptData.emailSent === false) {
+      setDeptEmailNote('A részleg-hozzárendelés megtörtént, de az értesítő e-mailt nem sikerült elküldeni.')
+    }
+
     await fetch(`/api/users/${settingsTarget.id}/settings`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ preferences: settings.preferences, permissions: settings.permissions }),
     })
     setSettingsSaving(false)
-    setSettingsTarget(null)
+    // Keep the modal open only to show the email warning; otherwise close.
+    if (deptData.emailSent !== false) setSettingsTarget(null)
+    loadUsers()
   }
 
   async function regenerateSchedule() {
@@ -539,6 +591,58 @@ export default function AgentsPage() {
               <div className="py-12 text-center text-gray-400 text-sm">Betöltés...</div>
             ) : (
               <div className="p-6 space-y-6">
+                {/* Departments */}
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-700 mb-1">Részlegek</h3>
+                  <p className="text-xs text-gray-400 mb-3">
+                    A felhasználó ezeknek a részlegeknek a publikus feladatait látja. A teljes céges
+                    feladatokat mindenki látja.
+                  </p>
+                  {allDepartments.length === 0 ? (
+                    <p className="text-sm text-gray-400">Még nincs részleg létrehozva.</p>
+                  ) : (
+                    <div className="flex flex-wrap gap-1.5">
+                      {allDepartments.map(d => {
+                        const on = userDeptIds.includes(d.id)
+                        const c = badgeColors(d.color)
+                        return (
+                          <button key={d.id} type="button" onClick={() => toggleUserDept(d.id)}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-medium border transition-colors ${
+                              on ? '' : 'text-gray-600 border-gray-200 hover:bg-gray-50'
+                            }`}
+                            style={on ? { background: c.background, color: c.text, borderColor: c.background } : undefined}
+                          >
+                            {on && '✓ '}{d.name}
+                          </button>
+                        )
+                      })}
+                    </div>
+                  )}
+
+                  {deptSaveError && (
+                    <div className="mt-3 bg-red-50 border border-red-200 rounded-xl px-3 py-2.5">
+                      <p className="text-sm text-red-700">{deptSaveError}</p>
+                      {blockingTickets.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {blockingTickets.map(t => (
+                            <li key={t.id} className="text-xs">
+                              <Link href={`/tickets/${t.id}`} className="text-red-700 underline hover:text-red-900">
+                                {t.title}
+                              </Link>
+                              <span className="text-red-400"> · {t.departmentName}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                  {deptEmailNote && (
+                    <p className="mt-3 text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2">
+                      {deptEmailNote}
+                    </p>
+                  )}
+                </div>
+
                 {/* Email notifications */}
                 <div>
                   <h3 className="text-sm font-semibold text-gray-700 mb-3">E-mail értesítések</h3>
@@ -596,6 +700,7 @@ export default function AgentsPage() {
                         { key: 'canDeleteTickets', label: 'Ticketek törlése' },
                         { key: 'canDeleteComments', label: 'Hozzászólások törlése' },
                         { key: 'canManageCategories', label: 'Kategóriák kezelése' },
+                        { key: 'canCreateCompanyWideTasks', label: 'Teljes céges feladat létrehozása' },
                       ] as const).map(({ key, label }) => (
                         <label key={key} className="flex items-center justify-between cursor-pointer">
                           <span className="text-sm text-gray-600">{label}</span>

@@ -1,4 +1,5 @@
 import { renderInlineMarkup } from './utils'
+import { badgeColors } from './departments'
 
 interface EmailPayload {
   to: string | string[]
@@ -107,6 +108,39 @@ async function sendEmailBatch(payloads: EmailPayload[]): Promise<{ sent: number;
   }
 
   return { sent, failed }
+}
+
+/**
+ * Like sendEmail, but reports failure instead of swallowing it.
+ *
+ * sendEmail deliberately logs-and-returns on a rejected Resend request, which is
+ * fine for best-effort notifications but wrong for a mandatory access-change
+ * notice: the caller needs to know whether it actually went out, so it can be
+ * audited and shown to the admin. Only the department-assignment mail uses this;
+ * every other call site keeps its existing behaviour.
+ */
+async function sendEmailOrThrow(payload: EmailPayload): Promise<void> {
+  if (!process.env.EMAIL_API_KEY) {
+    // Dev: console only, same as sendEmail — and treated as success.
+    await sendEmail(payload)
+    return
+  }
+  const response = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${process.env.EMAIL_API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      from: process.env.EMAIL_FROM || 'noreply@example.com',
+      to: payload.to,
+      subject: payload.subject,
+      html: payload.html,
+    }),
+  })
+  if (!response.ok) {
+    throw new Error(`Resend rejected the email (${response.status}): ${await response.text()}`)
+  }
 }
 
 export async function sendInviteEmail(
@@ -447,6 +481,61 @@ export async function sendPrivateTaskDeadlineReminderEmail(
       </div>
     `,
   })
+}
+
+/**
+ * Tells a user they've been added to one or more departments. This is a
+ * mandatory access-change notice, so it deliberately ignores the per-user
+ * ticket notification preferences. Never lists individual tickets.
+ *
+ * Throws on failure — the caller decides what to do (the assignment itself must
+ * stand even if the mail can't go out).
+ */
+export async function sendDepartmentAssignmentEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  departments: { name: string; color: string }[],
+  canCreateHere: boolean
+): Promise<void> {
+  const greeting = recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const multiple = departments.length > 1
+
+  const chips = departments.map(d => {
+    const { background, text } = badgeColors(d.color)
+    return `<span style="display:inline-block;background:${background};color:${text};font-size:13px;font-weight:bold;padding:4px 12px;border-radius:999px;margin:0 6px 6px 0;">${escapeHtml(d.name)}</span>`
+  }).join('')
+
+  await sendEmailOrThrow({
+    to: recipient.email,
+    subject: multiple
+      ? 'Új részlegekhez kaptál hozzáférést a myBatz-ban'
+      : `Hozzáférést kaptál ehhez a részleghez: ${departments[0].name}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6C5CE7;">🏷 Új részleg-hozzáférés</h2>
+        <p>Szia ${greeting},</p>
+        <p>${multiple
+          ? 'Mostantól az alábbi részlegekhez van hozzáférésed a myBatz-ban:'
+          : 'Mostantól az alábbi részleghez van hozzáférésed a myBatz-ban:'}</p>
+        <div style="margin:16px 0;">${chips}</div>
+        <div style="background:#f5f3ff;border-left:4px solid #6C5CE7;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="margin:0 0 8px;color:#4b5563;">Ez azt jelenti, hogy:</p>
+          <ul style="margin:0;padding-left:20px;color:#4b5563;line-height:1.8;">
+            <li>${multiple ? 'megtekintheted ezeknek a részlegeknek' : 'megtekintheted ennek a részlegnek'} a publikus feladatait,</li>
+            ${canCreateHere
+              ? `<li>a szerepkörödből és jogosultságaidból adódóan új feladatot is létrehozhatsz ${multiple ? 'ezekhez a részlegekhez' : 'ehhez a részleghez'}.</li>`
+              : ''}
+          </ul>
+        </div>
+        <p><a href="${appUrl}/tickets" style="color:#6C5CE7;font-weight:bold;">Publikus feladatok megnyitása →</a></p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő</p>
+      </div>
+    `,
+  })
+}
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 }
 
 // Renders the changelog's lightweight markup (## / ### / - / **bold**) as email HTML
