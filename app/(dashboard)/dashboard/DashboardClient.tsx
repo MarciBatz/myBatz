@@ -422,8 +422,13 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                             <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} lastName={ticket.createdBy.lastName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
-                                {ticket.pinned && <span className="text-amber-500 text-xs font-semibold">★ Kiemelt</span>}
-                                <p className="text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate max-w-xs">{ticket.title}</p>
+                                {ticket.pinned && (
+                                  <span className="shrink-0 whitespace-nowrap text-amber-500 text-xs font-semibold">★ Kiemelt</span>
+                                )}
+                                {/* min-w-0 is required here: a flex item with nowrap text otherwise
+                                    refuses to shrink below its full (untruncated) width, which pushed
+                                    against the "Kiemelt" badge and wrapped its text instead. */}
+                                <p className="min-w-0 text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate max-w-xs">{ticket.title}</p>
                               </div>
                               <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{ticket.description.replace(/<[^>]+>/g, '').slice(0, 80)}...</p>
                             </div>
@@ -486,9 +491,15 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             {/* Mobile cards */}
             <div className="md:hidden divide-y divide-gray-100">
               {tickets.map(ticket => (
-                <Link key={ticket.id} href={`/tickets/${ticket.id}`} className="block p-4 hover:bg-gray-50">
+                <Link key={ticket.id} href={`/tickets/${ticket.id}`}
+                  className={`block p-4 transition-colors ${ticket.pinned ? 'bg-amber-50 hover:bg-amber-100/60 border-l-4 border-l-amber-400' : 'hover:bg-gray-50'}`}>
                   <div className="flex items-start justify-between gap-2 mb-2">
-                    <p className="text-sm font-medium text-gray-900 flex-1">{ticket.title}</p>
+                    <div className="flex-1 min-w-0">
+                      {ticket.pinned && (
+                        <span className="block shrink-0 whitespace-nowrap text-amber-500 text-xs font-semibold mb-0.5">★ Kiemelt</span>
+                      )}
+                      <p className="text-sm font-medium text-gray-900">{ticket.title}</p>
+                    </div>
                     <PriorityBadge priority={ticket.priority} />
                   </div>
                   <div className="flex items-center gap-2 flex-wrap">
