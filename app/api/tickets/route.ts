@@ -7,7 +7,8 @@ import { sendNewTicketEmail } from '@/lib/email'
 import { fullDisplayName } from '@/lib/utils'
 import { hasPermission } from '@/lib/permissions'
 import { COMPANY_WIDE } from '@/lib/departments'
-import { scopedTicketWhere, resolveTicketTarget, isEligibleAssignee, getSelectableDepartments, getEligibleTicketUsers } from '@/lib/departments-access'
+import { scopedTicketWhere, resolveTicketTarget, isEligibleAssignee, getSelectableDepartments } from '@/lib/departments-access'
+import { isValidCategoryForTarget } from '@/lib/categories-access'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -21,6 +22,9 @@ const createSchema = z.object({
   description: z.string().min(1),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   categoryId: z.string().optional().nullable(),
+  // Kept permissive in the schema and required in the handler below, so a
+  // missing, null and empty assignee all produce the same Hungarian message
+  // instead of Zod's raw type error.
   assigneeId: z.string().optional().nullable(),
   visibility: z.enum(['DEPARTMENT', 'COMPANY_WIDE']).optional(),
   departmentId: z.string().optional().nullable(),
@@ -116,6 +120,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const data = createSchema.parse(body)
 
+    // Every ticket has someone responsible for it — there is no unassigned state.
+    const assigneeId = data.assigneeId
+    if (!assigneeId) {
+      return NextResponse.json(
+        { error: 'A felelős kiválasztása kötelező — minden feladatnak kell felelőse.' },
+        { status: 400 }
+      )
+    }
+
     // Resolve and validate the visibility target server-side. A user with no
     // departments and no company-wide permission simply has nowhere to file a
     // ticket, and gets told so.
@@ -139,9 +152,22 @@ export async function POST(request: NextRequest) {
     }
 
     // The assignee must be able to see the ticket they're given.
-    if (data.assigneeId && !(await isEligibleAssignee(data.assigneeId, target))) {
+    if (!(await isEligibleAssignee(assigneeId, target))) {
       return NextResponse.json(
         { error: 'A kiválasztott felelős nem tartozik ehhez a részleghez.' },
+        { status: 400 }
+      )
+    }
+
+    // Categories belong to a single department, so one from elsewhere — or any
+    // category at all on a company-wide ticket — is rejected rather than saved.
+    if (!(await isValidCategoryForTarget(data.categoryId, target))) {
+      return NextResponse.json(
+        {
+          error: target.visibility === 'COMPANY_WIDE'
+            ? 'Teljes céges feladathoz nem választható kategória, mert a kategóriák részlegenként külön állnak.'
+            : 'A kiválasztott kategória nem ehhez a részleghez tartozik.',
+        },
         { status: 400 }
       )
     }
@@ -152,7 +178,7 @@ export async function POST(request: NextRequest) {
         description: data.description,
         priority: data.priority || 'MEDIUM',
         categoryId: data.categoryId || null,
-        assigneeId: data.assigneeId || null,
+        assigneeId,
         visibility: target.visibility,
         departmentId: target.departmentId,
         createdById: user.id,
@@ -187,19 +213,12 @@ export async function POST(request: NextRequest) {
 
     const creatorName = fullDisplayName(user)
 
-    let notifyUsers: { id: string; email: string; name: string | null; nickname: string | null; firstName: string | null }[]
-    if (ticket.assignee) {
-      notifyUsers = [{ id: ticket.assignee.id, email: ticket.assignee.email, name: ticket.assignee.name, nickname: null, firstName: null }]
-    } else {
-      // Unassigned: notify only people who can actually see this ticket, so a
-      // department ticket never reaches someone outside it. Company-wide
-      // visibility widens who *may* be notified, but the trigger is unchanged
-      // (still only the "new unassigned ticket" event).
-      const eligible = await getEligibleTicketUsers(target)
-      notifyUsers = eligible
-        .filter(u => u.id !== user.id && u.role !== 'READER')
-        .map(u => ({ id: u.id, email: u.email, name: u.name, nickname: u.nickname, firstName: u.firstName }))
-    }
+    // An assignee is mandatory, so there is exactly one person to notify — the
+    // former "nobody is responsible, tell the whole department" fan-out is gone
+    // along with the case that produced it.
+    const notifyUsers = ticket.assignee
+      ? [{ id: ticket.assignee.id, email: ticket.assignee.email, name: ticket.assignee.name, nickname: null, firstName: null }]
+      : []
 
     await sendNewTicketEmail(notifyUsers, {
       id: ticket.id,

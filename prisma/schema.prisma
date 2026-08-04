@@ -58,8 +58,9 @@ model Department {
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
-  members UserDepartment[]
-  tickets Ticket[]
+  members    UserDepartment[]
+  tickets    Ticket[]
+  categories Category[]
 }
 
 /// Many-to-many join between users and departments.
@@ -126,9 +127,20 @@ model PasswordReset {
 }
 
 model Category {
-  id      String   @id @default(cuid())
-  name    String   @unique
-  tickets Ticket[]
+  id   String @id @default(cuid())
+  name String
+  // Lowercased name, written by the application — same reason as Department:
+  // a LOWER() expression index only folds accents on a UTF-8 aware collation.
+  nameNormalized String
+  // Categories are per-department: the work differs enough between departments
+  // that a shared list is noise. Company-wide tickets therefore have no
+  // category, since a department's category says nothing about them.
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  tickets      Ticket[]
+
+  @@unique([departmentId, nameNormalized])
+  @@index([departmentId])
 }
 
 model Ticket {

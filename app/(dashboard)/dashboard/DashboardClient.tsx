@@ -41,7 +41,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const [tickets, setTickets] = useState<Ticket[]>([])
   const [total, setTotal] = useState(0)
   const [loading, setLoading] = useState(true)
-  const [categories, setCategories] = useState<{ id: string; name: string }[]>([])
+  const [categories, setCategories] = useState<{ id: string; name: string; department?: { name: string } }[]>([])
   const [agents, setAgents] = useState<{ id: string; name: string | null; firstName?: string | null; lastName?: string | null; nickname?: string | null; email: string }[]>([])
 
   // Filters
@@ -355,7 +355,16 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           <select value={categoryId} onChange={e => { setCategoryId(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
             <option value="">Minden kategória</option>
-            {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {/* Two departments may each have an "Egyéb", so the department is
+                appended only where the bare name would be ambiguous. */}
+            {categories.map(c => {
+              const ambiguous = categories.filter(o => o.name === c.name).length > 1
+              return (
+                <option key={c.id} value={c.id}>
+                  {ambiguous && c.department ? `${c.name} (${c.department.name})` : c.name}
+                </option>
+              )
+            })}
           </select>
           <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
@@ -566,7 +575,6 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
       {/* Create ticket modal */}
       {showCreate && (
         <CreateTicketModal
-          categories={categories}
           agents={agents}
           departments={departments}
           canCompanyWide={canCompanyWide}
@@ -579,14 +587,12 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 }
 
 function CreateTicketModal({
-  categories,
   agents,
   departments,
   canCompanyWide,
   onClose,
   onCreated,
 }: {
-  categories: { id: string; name: string }[]
   agents: { id: string; name: string | null; email: string }[]
   departments: SelectableDepartment[]
   canCompanyWide: boolean
@@ -627,12 +633,33 @@ function CreateTicketModal({
     return () => { cancelled = true }
   }, [target, companyWide])
 
+  // Categories belong to one department, so the list follows the chosen target.
+  // A company-wide ticket gets none — a department's category says nothing about
+  // a ticket that spans the whole company.
+  const [fetchedCategories, setFetchedCategories] = useState<{ id: string; name: string }[] | null>(null)
+  useEffect(() => {
+    if (!target || companyWide) return
+    let cancelled = false
+    fetch(`/api/categories?forDepartmentId=${encodeURIComponent(target)}`)
+      .then(r => r.json())
+      .then(d => { if (!cancelled) setFetchedCategories(d.categories || []) })
+      .catch(() => { if (!cancelled) setFetchedCategories([]) })
+    return () => { cancelled = true }
+  }, [target, companyWide])
+
   const eligible = target ? (fetchedEligible ?? []) : agents
 
   // Derived, not synced: if the picked assignee isn't in the current target's
   // list, treat the field as empty and say why. The server re-checks anyway.
   const assigneeStillEligible = !assigneeId || eligible.length === 0 || eligible.some(u => u.id === assigneeId)
   const effectiveAssigneeId = assigneeStillEligible ? assigneeId : ''
+
+  // Same derivation for the category: one left over from a previous department
+  // simply doesn't apply any more. Empty until a department is picked — there is
+  // no meaningful list before that, and the field is disabled anyway.
+  const availableCategories = (!target || companyWide) ? [] : (fetchedCategories ?? [])
+  const categoryStillValid = !categoryId || availableCategories.some(c => c.id === categoryId)
+  const effectiveCategoryId = categoryStillValid ? categoryId : ''
 
   const modalAgentNameMap = buildUniqueDisplayNames(eligible)
 
@@ -701,6 +728,7 @@ function CreateTicketModal({
     setError('')
     if (!description || description === '<p></p>') { setError('A leírás megadása kötelező'); return }
     if (!target) { setError('Válaszd ki, melyik részleghez tartozik a feladat.'); return }
+    if (!effectiveAssigneeId) { setError('Válassz felelőst — minden feladatnak kell felelőse.'); return }
     // Company-wide needs an explicit second confirmation; the form state is kept
     // intact behind the dialog so "Visszalépek" loses nothing.
     if (companyWide) { setConfirmCompanyWide(true); return }
@@ -724,8 +752,8 @@ function CreateTicketModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title, description, priority,
-          categoryId: categoryId || null,
-          assigneeId: effectiveAssigneeId || null,
+          categoryId: effectiveCategoryId || null,
+          assigneeId: effectiveAssigneeId,
           visibility: companyWide ? COMPANY_WIDE : 'DEPARTMENT',
           departmentId: companyWide ? null : target,
           attachments,
@@ -798,11 +826,21 @@ function CreateTicketModal({
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">Kategória</label>
-              <select value={categoryId} onChange={e => setCategoryId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
+              <select value={effectiveCategoryId} onChange={e => setCategoryId(e.target.value)}
+                disabled={!target || companyWide}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400">
                 <option value="">Nincs</option>
-                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {availableCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
+              {companyWide ? (
+                <p className="text-xs text-gray-400 mt-1.5">A kategóriák részlegenként külön állnak, ezért teljes céges feladathoz nem választható.</p>
+              ) : !target ? (
+                <p className="text-xs text-gray-400 mt-1.5">Először válaszd ki a részleget.</p>
+              ) : !categoryStillValid ? (
+                <p className="text-xs text-amber-600 mt-1.5">A korábbi kategória nem ehhez a részleghez tartozik, ezért nem lesz beállítva.</p>
+              ) : availableCategories.length === 0 && fetchedCategories !== null ? (
+                <p className="text-xs text-gray-400 mt-1.5">Ennek a részlegnek még nincs kategóriája.</p>
+              ) : null}
             </div>
           </div>
           <div>
@@ -842,20 +880,27 @@ function CreateTicketModal({
             )}
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">Felelős</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Felelős <span className="text-red-500">*</span>
+            </label>
             <select value={effectiveAssigneeId} onChange={e => setAssigneeId(e.target.value)}
               disabled={!target}
               className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400">
-              <option value="">Nincs hozzárendelve</option>
+              <option value="">— Válassz felelőst —</option>
               {eligible.map(a => <option key={a.id} value={a.id}>{modalAgentNameMap[a.id] || a.email}</option>)}
             </select>
             {!assigneeStillEligible && (
               <p className="text-xs text-amber-600 mt-1.5">
-                A korábban kiválasztott felelős nem tartozik ehhez a részleghez, ezért nem lesz hozzárendelve. Válassz új felelőst.
+                A korábban kiválasztott felelős nem tartozik ehhez a részleghez. Válassz új felelőst.
               </p>
             )}
             {!target && (
               <p className="text-xs text-gray-400 mt-1.5">Először válaszd ki a részleget.</p>
+            )}
+            {target && eligible.length === 0 && fetchedEligible !== null && (
+              <p className="text-xs text-amber-600 mt-1.5">
+                Ehhez a részleghez nincs olyan felhasználó, akire rábízható a feladat.
+              </p>
             )}
           </div>
           <div>
@@ -863,7 +908,7 @@ function CreateTicketModal({
           </div>
           <div className="flex justify-end gap-3 pt-2">
             <button type="button" onClick={onClose} className="px-4 py-2 text-sm text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50">Mégse</button>
-            <button type="submit" disabled={loading || !target}
+            <button type="submit" disabled={loading || !target || !effectiveAssigneeId}
               className="px-4 py-2 text-sm text-white font-medium rounded-xl disabled:opacity-60" style={{ background: '#6C5CE7' }}>
               {loading ? 'Létrehozás...' : 'Feladat létrehozása'}
             </button>

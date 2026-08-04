@@ -104,11 +104,18 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
       .catch(() => {})
   }, [ticket?.visibility, ticket?.department?.id, ticket])
 
-
+  // Categories are per-department, so they follow the ticket's department the
+  // same way the assignee list does.
+  useEffect(() => {
+    if (!ticket?.department) return
+    fetch(`/api/categories?forDepartmentId=${encodeURIComponent(ticket.department.id)}`)
+      .then(r => r.json())
+      .then(d => setCategories(d.categories || []))
+      .catch(() => {})
+  }, [ticket?.department?.id, ticket])
 
   useEffect(() => {
     loadTicket()
-    fetch('/api/categories').then(r => r.json()).then(d => setCategories(d.categories || []))
     fetch('/api/departments').then(r => r.json()).then(d => setDepartments(d.departments || [])).catch(() => {})
     fetch('/api/saved-replies').then(r => r.json()).then(d => setSavedReplies(d.replies || []))
     fetch('/api/auth/me').then(r => r.json()).then(d => {
@@ -537,7 +544,7 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
               </div>
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Kategória</label>
-                {user.role === 'READER' ? (
+                {user.role === 'READER' || ticket.visibility === COMPANY_WIDE ? (
                   <p className="text-sm text-gray-700 px-2 py-1.5">{ticket.category?.name || '—'}</p>
                 ) : (
                   <select value={ticket.category?.id || ''} onChange={e => updateField('categoryId', e.target.value || null)}
@@ -545,6 +552,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                     <option value="">Nincs</option>
                     {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                   </select>
+                )}
+                {ticket.visibility === COMPANY_WIDE && (
+                  <p className="text-xs text-gray-400 mt-1">A kategóriák részlegenként külön állnak.</p>
                 )}
               </div>
               <div>
@@ -570,9 +580,13 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 {user.role === 'READER' ? (
                   <p className="text-sm text-gray-700 px-2 py-1.5">{ticket.assignee ? (fullDisplayName(ticket.assignee) || ticket.assignee.email) : '—'}</p>
                 ) : (
-                  <select value={ticket.assignee?.id || ''} onChange={e => updateField('assigneeId', e.target.value || null)}
+                  // Reassignable but not clearable: every ticket has someone
+                  // responsible. The placeholder is only reachable for tickets
+                  // created before that rule, and is disabled so it's a dead end.
+                  <select value={ticket.assignee?.id || ''}
+                    onChange={e => { if (e.target.value) updateField('assigneeId', e.target.value) }}
                     className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
-                    <option value="">Nincs hozzárendelve</option>
+                    <option value="" disabled>— Válassz felelőst —</option>
                     {agents.map(a => <option key={a.id} value={a.id}>{fullDisplayName(a) || a.email}</option>)}
                   </select>
                 )}

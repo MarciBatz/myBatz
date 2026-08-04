@@ -6,6 +6,7 @@ import { sendTicketUpdateEmail } from '@/lib/email'
 import { hasPermission } from '@/lib/permissions'
 import { COMPANY_WIDE } from '@/lib/departments'
 import { canAccessTicket, notFoundResponse, resolveTicketTarget, isEligibleAssignee } from '@/lib/departments-access'
+import { isValidCategoryForTarget } from '@/lib/categories-access'
 
 const updateSchema = z.object({
   title: z.string().min(1).max(255).optional(),
@@ -13,6 +14,8 @@ const updateSchema = z.object({
   status: z.enum(['OPEN', 'IN_PROGRESS', 'AWAITING', 'CLOSED']).optional(),
   priority: z.enum(['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']).optional(),
   categoryId: z.string().optional().nullable(),
+  // Permissive here, rejected in the handler, so null and "" give the same
+  // Hungarian message rather than Zod's raw type error.
   assigneeId: z.string().optional().nullable(),
   pinned: z.boolean().optional(),
   // ADMIN-only; validated below.
@@ -111,6 +114,15 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     const body = await request.json()
     const data = updateSchema.parse(body)
 
+    // A ticket may be reassigned but not left unowned. (Tickets created before
+    // this rule can still hold null; they simply can't be moved back to null.)
+    if (data.assigneeId !== undefined && !data.assigneeId) {
+      return NextResponse.json(
+        { error: 'A felelős nem vehető le — minden feladatnak kell felelőse. Válassz helyette másik felelőst.' },
+        { status: 400 }
+      )
+    }
+
     const existing = await prisma.ticket.findUnique({
       where: { id },
       include: {
@@ -163,6 +175,28 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       )
     }
 
+    // Categories are per-department. An explicitly sent one is validated against
+    // the resulting target and rejected if it doesn't fit; but when the target
+    // itself is what changed, the ticket's old category is simply dropped rather
+    // than blocking the move — the admin is reorganising, not editing metadata.
+    let categoryUpdate: { categoryId: string | null } | null = null
+    if (data.categoryId !== undefined) {
+      if (!(await isValidCategoryForTarget(data.categoryId, effectiveTarget))) {
+        return NextResponse.json(
+          {
+            error: effectiveTarget.visibility === COMPANY_WIDE
+              ? 'Teljes céges feladathoz nem választható kategória, mert a kategóriák részlegenként külön állnak.'
+              : 'A kiválasztott kategória nem ehhez a részleghez tartozik.',
+            reason: 'CATEGORY_NOT_IN_DEPARTMENT',
+          },
+          { status: 400 }
+        )
+      }
+      categoryUpdate = { categoryId: data.categoryId }
+    } else if (newTarget && existing.categoryId && !(await isValidCategoryForTarget(existing.categoryId, effectiveTarget))) {
+      categoryUpdate = { categoryId: null }
+    }
+
     // Field update and its activity log entries commit together, so a department
     // change can never land without its audit trail.
     const ticket = await prisma.ticket.update({
@@ -172,7 +206,7 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(data.description !== undefined && { description: data.description }),
         ...(data.status !== undefined && { status: data.status }),
         ...(data.priority !== undefined && { priority: data.priority }),
-        ...(data.categoryId !== undefined && { categoryId: data.categoryId }),
+        ...(categoryUpdate !== null && categoryUpdate),
         ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId }),
         ...(data.pinned !== undefined && { pinned: data.pinned }),
         ...(newTarget !== null && { visibility: newTarget.visibility, departmentId: newTarget.departmentId }),
@@ -204,8 +238,8 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       activityLogs.push({ ticketId: id, userId: user.id, action: 'assignee_changed', oldValue: existing.assigneeId || 'none', newValue: data.assigneeId || 'none' })
       changes.push('Felelős megváltozott')
     }
-    if (data.categoryId !== undefined && data.categoryId !== existing.categoryId) {
-      activityLogs.push({ ticketId: id, userId: user.id, action: 'category_changed', oldValue: existing.categoryId || 'none', newValue: data.categoryId || 'none' })
+    if (categoryUpdate !== null && categoryUpdate.categoryId !== existing.categoryId) {
+      activityLogs.push({ ticketId: id, userId: user.id, action: 'category_changed', oldValue: existing.categoryId || 'none', newValue: categoryUpdate.categoryId || 'none' })
       // kategória változás nem küld e-mailt
     }
     if (newTarget && (newTarget.visibility !== existing.visibility || newTarget.departmentId !== existing.departmentId)) {

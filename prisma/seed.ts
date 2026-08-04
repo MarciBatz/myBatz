@@ -69,14 +69,28 @@ async function main() {
 
   console.log('Users created')
 
+  // Every ticket belongs to a department, and categories hang off one, so the
+  // seed needs a department before it can create either.
+  const department = await prisma.department.upsert({
+    where: { nameNormalized: 'általános' },
+    update: {},
+    create: { name: 'Általános', nameNormalized: 'általános', color: '#6C5CE7' },
+  })
+  await prisma.userDepartment.createMany({
+    data: [admin, alice, bob, carol].map(u => ({ userId: u.id, departmentId: department.id })),
+    skipDuplicates: true,
+  })
+  console.log('Department created')
+
   // Create categories
-  const categories = await Promise.all([
-    prisma.category.upsert({ where: { name: 'Bug' }, update: {}, create: { name: 'Bug' } }),
-    prisma.category.upsert({ where: { name: 'Feature Request' }, update: {}, create: { name: 'Feature Request' } }),
-    prisma.category.upsert({ where: { name: 'Support' }, update: {}, create: { name: 'Support' } }),
-    prisma.category.upsert({ where: { name: 'Infrastructure' }, update: {}, create: { name: 'Infrastructure' } }),
-    prisma.category.upsert({ where: { name: 'Security' }, update: {}, create: { name: 'Security' } }),
-  ])
+  const categoryNames = ['Bug', 'Feature Request', 'Support', 'Infrastructure', 'Security']
+  const categories = await Promise.all(categoryNames.map(name =>
+    prisma.category.upsert({
+      where: { departmentId_nameNormalized: { departmentId: department.id, nameNormalized: name.toLowerCase() } },
+      update: {},
+      create: { name, nameNormalized: name.toLowerCase(), departmentId: department.id },
+    })
+  ))
 
   const [bugCat, featureCat, supportCat, infraCat, securityCat] = categories
   console.log('Categories created')
@@ -177,7 +191,11 @@ async function main() {
 
   const tickets = []
   for (const data of ticketsData) {
-    const ticket = await prisma.ticket.create({ data })
+    // visibility/departmentId must be paired — the DB CHECK constraint rejects
+    // a DEPARTMENT ticket with no department.
+    const ticket = await prisma.ticket.create({
+      data: { ...data, visibility: 'DEPARTMENT', departmentId: department.id },
+    })
     tickets.push(ticket)
   }
 
