@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
+import { useVisibleInterval } from '@/lib/use-visible-interval'
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -85,11 +86,10 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     setLoading(false)
   }, [ticketId])
 
-  // Auto-refresh so new comments/updates appear without a manual reload
-  useEffect(() => {
-    const interval = setInterval(() => { loadTicket() }, 15000)
-    return () => clearInterval(interval)
-  }, [loadTicket])
+  // Auto-refresh so new comments/updates appear without a manual reload. The
+  // interval stays short — you're reading a live conversation here — but only
+  // runs while the tab is actually open in front of someone.
+  useVisibleInterval(loadTicket, 15000)
 
   // Assignee + @mention candidates, scoped to this ticket's visibility: only
   // people who can actually see it. Reloads if an admin changes the department.

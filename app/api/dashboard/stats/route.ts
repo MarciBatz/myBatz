@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { requireSession, unauthorizedResponse } from '@/lib/auth'
 import { COMPANY_WIDE } from '@/lib/departments'
 import { scopedTicketWhere, getSelectableDepartments } from '@/lib/departments-access'
-import type { TicketStatus } from '@prisma/client'
+import { ticketStatsFor } from '@/lib/ticket-stats'
 
 export async function GET(request: NextRequest) {
   try {
@@ -22,16 +21,7 @@ export async function GET(request: NextRequest) {
       }
     }
     const base = await scopedTicketWhere(user, extra.length > 0 ? { AND: extra } : {})
-    const withStatus = (status: TicketStatus) => ({ AND: [base, { status }] })
-
-    const [open, inProgress, awaiting, closed] = await Promise.all([
-      prisma.ticket.count({ where: withStatus('OPEN') }),
-      prisma.ticket.count({ where: withStatus('IN_PROGRESS') }),
-      prisma.ticket.count({ where: withStatus('AWAITING') }),
-      prisma.ticket.count({ where: withStatus('CLOSED') }),
-    ])
-
-    return NextResponse.json({ open, inProgress, awaiting, closed, total: open + inProgress + awaiting + closed })
+    return NextResponse.json(await ticketStatsFor(base))
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') return unauthorizedResponse()
     console.error('Stats error:', error)

@@ -2,8 +2,9 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { fullDisplayName } from '@/lib/utils'
+import { useVisibleInterval } from '@/lib/use-visible-interval'
 
 const adminNavItems = [
   {
@@ -103,31 +104,21 @@ export default function Sidebar({ user }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const [unreadCount, setUnreadCount] = useState(0)
 
-  useEffect(() => {
-    function sendHeartbeat() {
-      fetch('/api/auth/heartbeat', { method: 'POST' }).catch(() => {})
-    }
-    sendHeartbeat()
-    const interval = setInterval(sendHeartbeat, 60000)
-    return () => clearInterval(interval)
+  // Presence and the unread badge are one request: the heartbeat response
+  // carries the count. It used to be two pollers at 60s and 30s.
+  const ping = useCallback(() => {
+    fetch('/api/auth/heartbeat', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => setUnreadCount(d.unreadCount || 0))
+      .catch(() => {})
   }, [])
 
-  useEffect(() => {
-    function fetchUnread() {
-      fetch('/api/notifications')
-        .then(r => r.json())
-        .then(d => setUnreadCount(d.unreadCount || 0))
-        .catch(() => {})
-    }
-    fetchUnread()
-    const interval = setInterval(fetchUnread, 30000)
-    return () => clearInterval(interval)
-  }, [])
+  useEffect(() => { ping() }, [ping])
+  useVisibleInterval(ping, 60000)
 
-  // Clear badge when visiting notifications page
-  useEffect(() => {
-    if (pathname === '/notifications') setUnreadCount(0)
-  }, [pathname])
+  // Derived, not stored: standing on the notifications page means the badge is
+  // moot. Writing 0 into state from an effect would fight the next poll.
+  const badgeCount = pathname === '/notifications' ? 0 : unreadCount
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' })
@@ -163,9 +154,9 @@ export default function Sidebar({ user }: SidebarProps) {
           >
             <span className="relative">
               {item.icon}
-              {item.badge && unreadCount > 0 && (
+              {item.badge && badgeCount > 0 && (
                 <span className="absolute -top-1 -right-1 w-4 h-4 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                  {unreadCount > 9 ? '9+' : unreadCount}
+                  {badgeCount > 9 ? '9+' : badgeCount}
                 </span>
               )}
             </span>

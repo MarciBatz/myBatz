@@ -11,6 +11,7 @@ import FileUpload, { type UploadedFile } from '@/components/FileUpload'
 import DepartmentBadge from '@/components/DepartmentBadge'
 import DepartmentFilterBar, { type SelectableDepartment } from '@/components/DepartmentFilterBar'
 import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR } from '@/lib/departments'
+import { useVisibleInterval } from '@/lib/use-visible-interval'
 
 interface TodayData {
   shifts: { id: string; shopName: string | null; location: string | null; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
@@ -143,12 +144,9 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 
   const filtersReady = useRef(false)
 
-  const statsQuery = useCallback(() => {
-    const p = new URLSearchParams()
-    for (const d of effectiveDepartmentIds) p.append('departmentIds', d)
-    return p.toString()
-  }, [effectiveDepartmentIds])
-
+  // The counters ride along with the list rather than being a second request:
+  // they share the department scope anyway, so asking for both at once halves
+  // the traffic without changing what's displayed.
   const loadTickets = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     const params = new URLSearchParams()
@@ -161,21 +159,17 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     for (const d of effectiveDepartmentIds) params.append('departmentIds', d)
     params.set('page', String(page))
     params.set('pageSize', '20')
+    if (!ticketsOnly) params.set('withStats', 'true')
 
     const r = await fetch(`/api/tickets?${params}`)
     const d = await r.json()
     setTickets(d.tickets || [])
     setTotal(d.total || 0)
+    if (d.stats) setStats(d.stats)
     setLoading(false)
-  }, [status, priority, categoryId, assigneeId, search, page, showClosed, effectiveDepartmentIds])
+  }, [status, priority, categoryId, assigneeId, search, page, showClosed, effectiveDepartmentIds, ticketsOnly])
 
   useEffect(() => { loadTickets() }, [loadTickets])
-
-  // Stats follow the same department scope as the list, so the numbers match the rows.
-  useEffect(() => {
-    if (ticketsOnly) return
-    fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {})
-  }, [statsQuery, ticketsOnly])
 
   // Restore saved filters from the user's account on mount
   useEffect(() => {
@@ -226,14 +220,12 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     return () => clearTimeout(t)
   }, [status, priority, categoryId, assigneeId, search, showClosed, effectiveDepartmentIdsKey, departmentsKey])
 
-  // Auto-refresh the list (and stats) so new tickets/updates appear without a manual reload
-  useEffect(() => {
-    const interval = setInterval(() => {
-      loadTickets(true)
-      if (!ticketsOnly) fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {})
-    }, 20000)
-    return () => clearInterval(interval)
-  }, [loadTickets, ticketsOnly, statsQuery])
+  // Auto-refresh so new tickets/updates appear without a manual reload. Only
+  // while the tab is actually being looked at, and once a minute rather than
+  // three times — this list is the single most-requested endpoint we have.
+  // No useCallback needed: the hook keeps the callback in a ref, so a fresh
+  // closure each render doesn't restart the timer.
+  useVisibleInterval(() => loadTickets(true), 60000)
 
   function clearFilters() {
     setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1); setDepartmentIds([])
@@ -579,7 +571,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
           departments={departments}
           canCompanyWide={canCompanyWide}
           onClose={() => setShowCreate(false)}
-          onCreated={() => { setShowCreate(false); loadTickets(); fetch(`/api/dashboard/stats?${statsQuery()}`).then(r => r.json()).then(d => setStats(d)).catch(() => {}) }}
+          onCreated={() => { setShowCreate(false); loadTickets() }}
         />
       )}
     </div>

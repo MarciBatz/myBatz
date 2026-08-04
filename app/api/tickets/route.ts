@@ -9,6 +9,7 @@ import { hasPermission } from '@/lib/permissions'
 import { COMPANY_WIDE } from '@/lib/departments'
 import { scopedTicketWhere, resolveTicketTarget, isEligibleAssignee, getSelectableDepartments } from '@/lib/departments-access'
 import { isValidCategoryForTarget } from '@/lib/categories-access'
+import { ticketStatsFor } from '@/lib/ticket-stats'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -73,18 +74,32 @@ export async function GET(request: NextRequest) {
     // intersected with the user's own scope, and company-wide tickets always
     // stay in view. A stale/empty selection falls back to the full scope rather
     // than hiding everything.
+    //
+    // Kept as its own clause rather than only pushed into `and`, because the
+    // dashboard counters below are scoped by department but *not* by the other
+    // filters — the same split the standalone stats endpoint makes.
+    let departmentClause: Prisma.TicketWhereInput | null = null
     if (departmentIdsParam.length > 0) {
       const selectable = await getSelectableDepartments(user)
       const allowed = new Set(selectable.map(d => d.id))
       const requested = departmentIdsParam.filter(d => allowed.has(d))
       if (requested.length > 0 && requested.length < allowed.size) {
-        and.push({ OR: [{ visibility: COMPANY_WIDE }, { departmentId: { in: requested } }] })
+        departmentClause = { OR: [{ visibility: COMPANY_WIDE }, { departmentId: { in: requested } }] }
+        and.push(departmentClause)
       }
     }
 
     const where = await scopedTicketWhere(user, and.length > 0 ? { AND: and } : {})
 
-    const [tickets, total] = await Promise.all([
+    // The dashboard used to fetch its counters as a second request on every
+    // poll. Asking for them here costs one grouped query instead of a whole
+    // extra invocation.
+    const withStats = request.nextUrl.searchParams.get('withStats') === 'true'
+    const statsWhere = withStats
+      ? await scopedTicketWhere(user, departmentClause ? { AND: [departmentClause] } : {})
+      : null
+
+    const [tickets, total, stats] = await Promise.all([
       prisma.ticket.findMany({
         where,
         include: {
@@ -99,9 +114,10 @@ export async function GET(request: NextRequest) {
         take: pageSize,
       }),
       prisma.ticket.count({ where }),
+      statsWhere ? ticketStatsFor(statsWhere) : Promise.resolve(null),
     ])
 
-    return NextResponse.json({ tickets, total, page, pageSize })
+    return NextResponse.json({ tickets, total, page, pageSize, ...(stats && { stats }) })
   } catch (error) {
     if (error instanceof Error && error.message === 'UNAUTHORIZED') {
       return unauthorizedResponse()

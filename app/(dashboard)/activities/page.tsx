@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Avatar from '@/components/Avatar'
 import Link from 'next/link'
 import { formatDateTime, fullDisplayName } from '@/lib/utils'
+import { useVisibleInterval } from '@/lib/use-visible-interval'
 
 interface Activity {
   id: string; action: string; oldValue: string | null; newValue: string | null; createdAt: string
@@ -102,12 +103,8 @@ export default function LogPage() {
 
   useEffect(() => { load() }, [load])
 
-  // Auto-refresh
-  useEffect(() => {
-    if (allowed !== true) return
-    const interval = setInterval(load, 20000)
-    return () => clearInterval(interval)
-  }, [allowed, load])
+  // Auto-refresh, only while the tab is being looked at.
+  useVisibleInterval(() => { if (allowed === true) load() }, 20000)
 
   if (allowed === null) return <div className="p-6 text-gray-400">Betöltés...</div>
   if (allowed === false) return null

@@ -1,20 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requireSession, unauthorizedResponse } from '@/lib/auth'
-import { ticketAccessWhere } from '@/lib/departments-access'
+import { notificationScope } from '@/lib/notifications-access'
 
 export async function GET(request: NextRequest) {
   try {
     const user = await requireSession(request)
-    // Notifications always hang off a ticket, so an older notification must stop
-    // being listed once the user loses access to that ticket's department —
-    // otherwise its title and link would keep leaking.
-    const access = await ticketAccessWhere(user)
-    const where = {
-      userId: user.id,
-      message: { not: null },
-      ...(user.role !== 'ADMIN' && { ticket: access }),
-    }
+    const where = await notificationScope(user)
     const notifications = await prisma.notificationLog.findMany({
       where,
       orderBy: { sentAt: 'desc' },
