@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { hasPermission } from '@/lib/permissions'
-import { generateOfficeWeeks, getMonday } from '@/lib/office-weeks'
+import { rebuildFutureOfficeWeeks } from '@/lib/office-weeks'
+import { writeAuditLog } from '@/lib/audit'
 
 export async function POST(request: NextRequest) {
   const session = await getSessionFromRequest(request)
@@ -11,9 +11,14 @@ export async function POST(request: NextRequest) {
   const canRegen = await hasPermission(session.id, session.role, 'canRegenerateOfficeSchedule')
   if (!canRegen) return forbiddenResponse()
 
-  const thisMonday = getMonday(new Date())
-  await prisma.officeWeek.deleteMany({ where: { weekStart: { gte: thisMonday } } })
-  const created = await generateOfficeWeeks(52)
+  const { removed, created, from } = await rebuildFutureOfficeWeeks(52)
 
-  return NextResponse.json({ ok: true, created })
+  await writeAuditLog(
+    session.id,
+    'office_schedule_regenerated',
+    `${created} hét újraosztva ${from.toISOString().slice(0, 10)}-tól. A futó hét és a kézzel beállított hetek változatlanok.`,
+    request
+  )
+
+  return NextResponse.json({ ok: true, created, removed })
 }
