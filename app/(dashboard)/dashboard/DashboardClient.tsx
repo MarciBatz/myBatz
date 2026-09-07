@@ -307,14 +307,9 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
         )
       })()}
 
-      {/* Stat cards — personal, so say so: without a label these read as
-          company-wide totals and the small numbers look like a bug. */}
-      {!ticketsOnly && <div className="mb-6">
-        <div className="flex items-baseline gap-2 mb-3">
-          <h2 className="text-sm font-semibold text-gray-700">Az én feladataim</h2>
-          <span className="text-xs text-gray-400">a rád bízott feladatok</span>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {/* Stat cards — counted for the signed-in user only (see the withStats
+          branch of /api/tickets). */}
+      {!ticketsOnly && <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Nyitott', value: stats?.open ?? '—', color: '#3B82F6', bg: '#EFF6FF' },
           { label: 'Folyamatban', value: stats?.inProgress ?? '—', color: '#6C5CE7', bg: '#EDE9FE' },
@@ -331,7 +326,6 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
             <p className="text-3xl font-bold" style={{ color: s.color }}>{s.value}</p>
           </div>
         ))}
-        </div>
       </div>}
 
       {/* Department scope */}
