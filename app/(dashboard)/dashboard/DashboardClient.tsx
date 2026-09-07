@@ -12,6 +12,7 @@ import DepartmentBadge from '@/components/DepartmentBadge'
 import DepartmentFilterBar, { type SelectableDepartment } from '@/components/DepartmentFilterBar'
 import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR } from '@/lib/departments'
 import { useVisibleInterval } from '@/lib/use-visible-interval'
+import StatusFilter from '@/components/StatusFilter'
 
 interface TodayData {
   shifts: { id: string; shopName: string | null; location: string | null; assignedTo: string | null; forSelf: boolean; sheetTab: string }[]
@@ -33,7 +34,6 @@ interface Ticket {
 }
 interface User { id: string; name: string | null; lastName?: string | null; firstName?: string | null; nickname?: string | null; email: string; role: string }
 
-const STATUS_OPTIONS = ['', 'OPEN', 'IN_PROGRESS', 'AWAITING', 'CLOSED']
 const PRIORITY_OPTIONS = ['', 'CRITICAL', 'HIGH', 'MEDIUM', 'LOW']
 
 export default function DashboardClient({ user, ticketsOnly = false }: { user: User; ticketsOnly?: boolean }) {
@@ -47,7 +47,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
 
   // Filters
   const [showClosed, setShowClosed] = useState(true)
-  const [status, setStatus] = useState('')
+  const [statuses, setStatuses] = useState<string[]>([])
   const [priority, setPriority] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
@@ -150,7 +150,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   const loadTickets = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
     const params = new URLSearchParams()
-    if (status) params.set('status', status)
+    for (const s of statuses) params.append('status', s)
     if (priority) params.set('priority', priority)
     if (categoryId) params.set('categoryId', categoryId)
     if (assigneeId) params.set('assigneeId', assigneeId)
@@ -167,7 +167,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
     setTotal(d.total || 0)
     if (d.stats) setStats(d.stats)
     setLoading(false)
-  }, [status, priority, categoryId, assigneeId, search, page, showClosed, effectiveDepartmentIds, ticketsOnly])
+  }, [statuses, priority, categoryId, assigneeId, search, page, showClosed, effectiveDepartmentIds, ticketsOnly])
 
   useEffect(() => { loadTickets() }, [loadTickets])
 
@@ -178,7 +178,13 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
       .then(d => {
         const f = d.filters
         if (f) {
-          if (typeof f.status === 'string') setStatus(f.status)
+          // `statuses` replaced the single `status`; filters saved before that
+          // still carry the old string, so it is read as a one-element list.
+          if (Array.isArray(f.statuses)) {
+            setStatuses(f.statuses.filter((s: unknown) => typeof s === 'string'))
+          } else if (typeof f.status === 'string' && f.status) {
+            setStatuses([f.status])
+          }
           if (typeof f.priority === 'string') setPriority(f.priority)
           if (typeof f.categoryId === 'string') setCategoryId(f.categoryId)
           if (typeof f.assigneeId === 'string') setAssigneeId(f.assigneeId)
@@ -202,6 +208,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   // on every visit. Waits for the department list: persisting an empty "known"
   // set would make every existing department look new on the next load.
   const effectiveDepartmentIdsKey = effectiveDepartmentIds.join(',')
+  const statusesKey = statuses.join(',')
   useEffect(() => {
     if (!filtersReady.current || !departmentsLoaded.current) return
     const t = setTimeout(() => {
@@ -210,7 +217,8 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           filters: {
-            status, priority, categoryId, assigneeId, search, showClosed,
+            statuses: statusesKey.split(',').filter(Boolean),
+            priority, categoryId, assigneeId, search, showClosed,
             departmentIds: effectiveDepartmentIdsKey.split(',').filter(Boolean),
             knownDepartmentIds: departmentsKey.split(',').filter(Boolean),
           },
@@ -218,7 +226,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
       }).catch(() => {})
     }, 600)
     return () => clearTimeout(t)
-  }, [status, priority, categoryId, assigneeId, search, showClosed, effectiveDepartmentIdsKey, departmentsKey])
+  }, [statusesKey, priority, categoryId, assigneeId, search, showClosed, effectiveDepartmentIdsKey, departmentsKey])
 
   // Auto-refresh so new tickets/updates appear without a manual reload. Only
   // while the tab is actually being looked at, and once a minute rather than
@@ -228,7 +236,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
   useVisibleInterval(() => loadTickets(true), 60000)
 
   function clearFilters() {
-    setStatus(''); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1); setDepartmentIds([])
+    setStatuses([]); setPriority(''); setCategoryId(''); setAssigneeId(''); setSearch(''); setShowClosed(false); setPage(1); setDepartmentIds([])
     fetch('/api/ticket-filters', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -359,11 +367,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
               )
             })}
           </select>
-          <select value={status} onChange={e => { setStatus(e.target.value); setPage(1) }}
-            className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
-            <option value="">Minden státusz</option>
-            {STATUS_OPTIONS.filter(Boolean).map(s => <option key={s} value={s}>{{'OPEN':'Nyitott','IN_PROGRESS':'Folyamatban','AWAITING':'Várakozó','CLOSED':'Lezárt'}[s] ?? s}</option>)}
-          </select>
+          <StatusFilter value={statuses} onChange={next => { setStatuses(next); setPage(1) }} />
           <select value={priority} onChange={e => { setPriority(e.target.value); setPage(1) }}
             className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white">
             <option value="">Minden prioritás</option>

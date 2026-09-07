@@ -40,9 +40,13 @@ export async function GET(request: NextRequest) {
     // Validate the enum-ish params instead of casting them into the query.
     const STATUSES = ['OPEN', 'IN_PROGRESS', 'AWAITING', 'CLOSED'] as const
     const PRIORITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'] as const
-    const rawStatus = searchParams.get('status')
+    // ?status can repeat, so several statuses can be shown at once. Filtering
+    // the known list by what was asked for both validates the input and keeps
+    // the values typed — an unknown status is simply dropped. A single
+    // ?status=OPEN still arrives here as a one-element list.
+    const requestedStatuses = searchParams.getAll('status').filter(Boolean)
+    const statuses = STATUSES.filter(s => requestedStatuses.includes(s))
     const rawPriority = searchParams.get('priority')
-    const status = STATUSES.find(s => s === rawStatus)
     const priority = PRIORITIES.find(p => p === rawPriority)
     const categoryId = searchParams.get('categoryId') || undefined
     const assigneeId = searchParams.get('assigneeId') || undefined
@@ -56,7 +60,9 @@ export async function GET(request: NextRequest) {
     // Every condition is pushed into a single AND list, so adding one can never
     // accidentally widen the result set the way a stray top-level OR could.
     const and: Prisma.TicketWhereInput[] = []
-    if (status) and.push({ status })
+    // An explicit status selection wins over the "hide closed" toggle, exactly
+    // as it did when only one status could be picked.
+    if (statuses.length > 0) and.push({ status: { in: statuses } })
     else if (excludeClosed) and.push({ status: { not: 'CLOSED' } })
     if (priority) and.push({ priority })
     if (categoryId) and.push({ categoryId })
