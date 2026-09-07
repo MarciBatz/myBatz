@@ -94,9 +94,18 @@ export async function GET(request: NextRequest) {
     // The dashboard used to fetch its counters as a second request on every
     // poll. Asking for them here costs one grouped query instead of a whole
     // extra invocation.
+    //
+    // The counters are personal: they count the tickets *this user* is
+    // responsible for, not everything they can see. They still follow the
+    // department filter, so they stay consistent with the list underneath.
     const withStats = request.nextUrl.searchParams.get('withStats') === 'true'
     const statsWhere = withStats
-      ? await scopedTicketWhere(user, departmentClause ? { AND: [departmentClause] } : {})
+      ? await scopedTicketWhere(user, {
+          AND: [
+            ...(departmentClause ? [departmentClause] : []),
+            { assigneeId: user.id },
+          ],
+        })
       : null
 
     const [tickets, total, stats] = await Promise.all([
