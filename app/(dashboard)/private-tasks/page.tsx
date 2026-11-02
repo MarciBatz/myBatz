@@ -72,7 +72,9 @@ export default function PrivateTasksPage() {
   // Never restored from anywhere: the page always opens showing everything.
   const [filters, setFilters] = useState<PrivateTaskFilters>(EMPTY_FILTERS)
   const [editing, setEditing] = useState<PrivateTask | null>(null)
-  const [creatingIn, setCreatingIn] = useState<PrivateTaskColumnValue | null>(null)
+  // Creating carries the column and, when started from a calendar day, that
+  // day as the deadline — so "new task" means the same thing everywhere.
+  const [creating, setCreating] = useState<{ column: PrivateTaskColumnValue; dueDate?: string } | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
   const [dragOverCol, setDragOverCol] = useState<PrivateTaskColumnValue | null>(null)
   const [error, setError] = useState('')
@@ -306,15 +308,27 @@ export default function PrivateTasksPage() {
           {/* Board / calendar. The archive keeps its own layout, so the switch
               is hidden there rather than showing a view it doesn't have. */}
           {scope.kind !== 'archive' && (
-            <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shrink-0 bg-white">
-              {([['board', 'Tábla'], ['calendar', 'Naptár']] as const).map(([v, label]) => (
-                <button key={v} type="button" onClick={() => setView(v)}
-                  className={`px-3 py-2 text-sm transition-colors ${
-                    view === v ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
-                  }`}>
-                  {label}
-                </button>
-              ))}
+            <div className="flex items-center gap-2 shrink-0">
+              <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden bg-white">
+                {([['board', 'Tábla'], ['calendar', 'Naptár']] as const).map(([v, label]) => (
+                  <button key={v} type="button" onClick={() => setView(v)}
+                    className={`px-3 py-2 text-sm transition-colors ${
+                      view === v ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                    }`}>
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {/* The board has a composer in every column; the calendar had no
+                  way in at all. One button in the header serves both views.
+                  Phones get the floating button instead — this row is already
+                  full at that width. */}
+              <button type="button" onClick={() => setCreating({ column: 'TODO' })}
+                className="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium text-white shadow-sm hover:opacity-90 transition-opacity"
+                style={{ background: '#6C5CE7' }}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Új feladat
+              </button>
             </div>
           )}
         </div>
@@ -404,6 +418,7 @@ export default function PrivateTasksPage() {
             tasks={filtered}
             sort={filters.sort}
             onOpenTask={t => setEditing(t)}
+            onCreateForDay={day => setCreating({ column: 'TODO', dueDate: day })}
           />
         )}
 
@@ -498,7 +513,7 @@ export default function PrivateTasksPage() {
                     ))}
 
                     <button
-                      onClick={() => setCreatingIn(col)}
+                      onClick={() => setCreating({ column: col })}
                       className="w-full text-left text-xs text-gray-400 hover:text-indigo-600 hover:bg-white rounded-lg px-2.5 py-2 transition-colors"
                     >
                       + Új feladat
@@ -577,14 +592,28 @@ export default function PrivateTasksPage() {
         )}
       </div>
 
-      {(editing || creatingIn) && (
+      {/* Phone-sized screens: a thumb-reachable button, since the header row
+          has no space for one and the board's composers sit at the bottom of
+          whichever column happens to be scrolled into view. It stays under the
+          nav drawer (z-40) and the dialogs (z-50) rather than over them. */}
+      {scope.kind !== 'archive' && (
+        <button type="button" onClick={() => setCreating({ column: 'TODO' })}
+          aria-label="Új feladat"
+          className="sm:hidden fixed bottom-5 right-5 z-30 w-14 h-14 rounded-full text-white shadow-lg flex items-center justify-center active:scale-95 transition-transform"
+          style={{ background: '#6C5CE7' }}>
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+        </button>
+      )}
+
+      {(editing || creating) && (
         <PrivateTaskModal
           task={editing}
-          defaultColumn={creatingIn ?? 'TODO'}
+          defaultColumn={creating?.column ?? 'TODO'}
+          defaultDueDate={creating?.dueDate ?? null}
           defaultTicketId={scope.kind === 'ticket' ? scope.id : null}
           linkableTickets={linkable}
-          onClose={() => { setEditing(null); setCreatingIn(null) }}
-          onSaved={() => { setEditing(null); setCreatingIn(null); load() }}
+          onClose={() => { setEditing(null); setCreating(null) }}
+          onSaved={() => { setEditing(null); setCreating(null); load() }}
         />
       )}
 

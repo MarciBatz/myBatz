@@ -35,10 +35,13 @@ export default function PrivateTaskCalendar({
   tasks,
   sort,
   onOpenTask,
+  onCreateForDay,
 }: {
   tasks: CalendarTask[]
   sort: SortKey
   onOpenTask: (task: CalendarTask) => void
+  /** Called with a yyyy-mm-dd day to start a task due that day. */
+  onCreateForDay: (dayKey: string) => void
 }) {
   const today = new Date()
   const [cursor, setCursor] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1))
@@ -154,10 +157,22 @@ export default function PrivateTaskCalendar({
 
       {selected && (
         <div className="bg-white rounded-xl border border-gray-100 p-4 mt-4">
-          <h3 className="text-sm font-semibold text-gray-900 mb-3">
-            {selected.slice(8, 10).replace(/^0/, '')}. {MONTHS[Number(selected.slice(5, 7)) - 1]} —{' '}
-            {selectedTasks.length} feladat
-          </h3>
+          <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+            <h3 className="text-sm font-semibold text-gray-900">
+              {selected.slice(8, 10).replace(/^0/, '')}. {MONTHS[Number(selected.slice(5, 7)) - 1]} —{' '}
+              {selectedTasks.length} feladat
+            </h3>
+            {/* Only on the deadline basis: a deadline can be set from a day,
+                but a creation date cannot, so prefilling one from this day
+                would write something the person did not choose. */}
+            {dateBasis === 'dueDate' && (
+              <button type="button" onClick={() => onCreateForDay(selected)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-xs font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 transition-colors">
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                Új feladat erre a napra
+              </button>
+            )}
+          </div>
           {selectedTasks.length === 0 ? (
             <p className="text-sm text-gray-400">Ezen a napon nincs feladat.</p>
           ) : (

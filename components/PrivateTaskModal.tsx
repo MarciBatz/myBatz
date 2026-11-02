@@ -22,10 +22,13 @@ const PRIORITY_LABELS: Record<string, string> = Object.fromEntries(
 )
 
 export default function PrivateTaskModal({
-  task, defaultColumn, defaultTicketId, linkableTickets, onClose, onSaved,
+  task, defaultColumn, defaultDueDate, defaultTicketId, linkableTickets, onClose, onSaved,
 }: {
   task: PrivateTask | null
   defaultColumn: PrivateTaskColumnValue
+  /** yyyy-mm-dd prefilled into a new task's deadline, e.g. the day clicked
+   *  in the calendar. Ignored when editing — that task has its own. */
+  defaultDueDate?: string | null
   defaultTicketId: string | null
   linkableTickets: LinkableTicket[]
   onClose: () => void
@@ -39,7 +42,7 @@ export default function PrivateTaskModal({
   const [description, setDescription] = useState(task?.description ?? '')
   const [column, setColumn] = useState<PrivateTaskColumnValue>(task?.column ?? defaultColumn)
   const [priority, setPriority] = useState(task?.priority ?? 'MEDIUM')
-  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : '')
+  const [dueDate, setDueDate] = useState(task?.dueDate ? task.dueDate.slice(0, 10) : defaultDueDate ?? '')
   const [reminderDaysBefore, setReminderDaysBefore] = useState<string>(
     task?.reminderDaysBefore != null ? String(task.reminderDaysBefore) : ''
   )
