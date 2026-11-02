@@ -15,6 +15,9 @@ import {
   type LinkableTicket,
 } from '@/lib/private-tasks'
 import PrivateTaskModal from '@/components/PrivateTaskModal'
+import PrivateTaskFilterBar from '@/components/PrivateTaskFilterBar'
+import PrivateTaskCalendar from '@/components/PrivateTaskCalendar'
+import { EMPTY_FILTERS, matchesFilters, sortTasks, type PrivateTaskFilters } from '@/lib/private-task-filters'
 
 type Scope = { kind: 'all' } | { kind: 'unlinked' } | { kind: 'ticket'; id: string } | { kind: 'archive' }
 
@@ -22,8 +25,11 @@ interface ArchiveEvent { id: string; type: string; fromColumn: string | null; to
 interface ArchiveComment { id: string; body: string; createdAt: string }
 interface ArchiveTask {
   id: string; title: string; description: string | null; priority: string
+  // The endpoint returns every scalar of the task; these two are declared
+  // because the filters and the calendar place archived tasks by them too.
+  column: PrivateTaskColumnValue; dueDate: string | null
   doneAt: string | null; archivedAt: string | null; createdAt: string
-  ticket: { id: string; title: string } | null
+  ticket: { id: string; title: string; status: string } | null
   events: ArchiveEvent[]
   comments: ArchiveComment[]
 }
@@ -62,6 +68,9 @@ export default function PrivateTasksPage() {
   const [tasks, setTasks] = useState<PrivateTask[]>([])
   const [linkable, setLinkable] = useState<LinkableTicket[]>([])
   const [scope, setScope] = useState<Scope>({ kind: 'all' })
+  const [view, setView] = useState<'board' | 'calendar'>('board')
+  // Never restored from anywhere: the page always opens showing everything.
+  const [filters, setFilters] = useState<PrivateTaskFilters>(EMPTY_FILTERS)
   const [editing, setEditing] = useState<PrivateTask | null>(null)
   const [creatingIn, setCreatingIn] = useState<PrivateTaskColumnValue | null>(null)
   const [dragId, setDragId] = useState<string | null>(null)
@@ -108,11 +117,26 @@ export default function PrivateTasksPage() {
     return true // 'all' (and 'archive', which doesn't render the board)
   }
 
-  const visible = tasks.filter(inScope)
+  // Archived tasks only join the list when asked for; they are fetched from
+  // their own endpoint, so they arrive as a separate list that is merged here.
+  const archivedAsTasks: PrivateTask[] = filters.includeArchived
+    ? archiveTasks.map(a => ({
+        id: a.id, title: a.title, description: null, column: a.column as PrivateTaskColumnValue,
+        priority: a.priority, dueDate: a.dueDate, reminderDaysBefore: null, position: 0,
+        ticketId: a.ticket?.id ?? null, ticket: a.ticket ?? null,
+        createdAt: a.createdAt, updatedAt: a.createdAt, archivedAt: a.archivedAt,
+      }))
+    : []
+
+  const scoped = [...tasks, ...archivedAsTasks].filter(inScope)
+  const filtered = scoped.filter(t => matchesFilters(t, filters))
+
+  // Dragging writes the manual order, so it is only offered while that is the
+  // order being shown — otherwise a dropped card would snap straight back.
+  const dragEnabled = filters.sort === 'manual'
+
   function columnTasks(col: PrivateTaskColumnValue) {
-    return visible
-      .filter(t => t.column === col)
-      .sort((a, b) => a.position - b.position || a.createdAt.localeCompare(b.createdAt))
+    return sortTasks(filtered.filter(t => t.column === col), filters.sort)
   }
 
   async function handleDrop(col: PrivateTaskColumnValue) {
@@ -130,8 +154,12 @@ export default function PrivateTasksPage() {
     const next = tasks.map(t => (t.id === id ? moved : t))
     setTasks(next)
 
+    // Every card in the destination column, not just the ones currently on
+    // screen. The endpoint rewrites position from the list it is given, so
+    // leaving out a card hidden by the scope or a filter would strand it with a
+    // stale position that now collides with a visible one.
     const ids = next
-      .filter(t => t.column === col && inScope(t))
+      .filter(t => t.column === col && !t.archivedAt)
       .sort((a, b) => (a.id === id ? -1 : b.id === id ? 1 : a.position - b.position))
       .map(t => t.id)
 
@@ -228,9 +256,11 @@ export default function PrivateTasksPage() {
     })
   }
 
+  // The archive is fetched for its own view, and also once "Archívum is" is
+  // switched on, since the board and calendar then need those tasks too.
   useEffect(() => {
-    if (scope.kind === 'archive') loadArchive()
-  }, [scope, loadArchive])
+    if (scope.kind === 'archive' || filters.includeArchived) loadArchive()
+  }, [scope, filters.includeArchived, loadArchive])
 
   async function archiveTask(id: string) {
     setArchivingId(id)
@@ -266,12 +296,27 @@ export default function PrivateTasksPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Privát feladataim</h1>
             <p className="text-gray-500 text-xs sm:text-sm">
               A feladataid tartalmát rajtad kívül senki nem látja.
             </p>
           </div>
+
+          {/* Board / calendar. The archive keeps its own layout, so the switch
+              is hidden there rather than showing a view it doesn't have. */}
+          {scope.kind !== 'archive' && (
+            <div className="flex items-center rounded-lg border border-gray-200 overflow-hidden shrink-0 bg-white">
+              {([['board', 'Tábla'], ['calendar', 'Naptár']] as const).map(([v, label]) => (
+                <button key={v} type="button" onClick={() => setView(v)}
+                  className={`px-3 py-2 text-sm transition-colors ${
+                    view === v ? 'bg-indigo-50 text-indigo-700 font-medium' : 'text-gray-600 hover:bg-gray-50'
+                  }`}>
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -279,6 +324,19 @@ export default function PrivateTasksPage() {
         <div className="mx-4 sm:mx-6 mb-3 px-3 py-2 bg-red-50 border border-red-100 rounded-lg text-sm text-red-600 flex items-center justify-between">
           {error}
           <button onClick={() => setError('')} className="text-red-400 hover:text-red-600">✕</button>
+        </div>
+      )}
+
+      {/* One filter bar for both views, so switching layout never changes what
+          is being looked at. */}
+      {scope.kind !== 'archive' && (
+        <div className="px-4 sm:px-6">
+          <PrivateTaskFilterBar
+            filters={filters}
+            onChange={setFilters}
+            matchCount={filtered.length}
+            totalCount={scoped.length}
+          />
         </div>
       )}
 
@@ -340,8 +398,17 @@ export default function PrivateTasksPage() {
           </div>
         </aside>
 
+        {/* Calendar */}
+        {scope.kind !== 'archive' && view === 'calendar' && (
+          <PrivateTaskCalendar
+            tasks={filtered}
+            sort={filters.sort}
+            onOpenTask={t => setEditing(t)}
+          />
+        )}
+
         {/* Board */}
-        {scope.kind !== 'archive' && (
+        {scope.kind !== 'archive' && view === 'board' && (
         <div className="flex-1 min-w-0 overflow-x-auto">
           <div className="flex gap-4 min-w-max pb-2">
             {PRIVATE_TASK_COLUMNS.map(col => {
@@ -366,7 +433,7 @@ export default function PrivateTasksPage() {
                     {list.map(t => (
                       <article
                         key={t.id}
-                        draggable
+                        draggable={dragEnabled && !t.archivedAt}
                         onDragStart={() => { dragIdRef.current = t.id; setDragId(t.id) }}
                         onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDragOverCol(null) }}
                         onClick={() => setEditing(t)}
@@ -400,9 +467,18 @@ export default function PrivateTasksPage() {
                         <div className="flex items-center gap-1.5 flex-wrap mt-2">
                           <PriorityBadge priority={t.priority} />
                           {t.dueDate && (
-                            <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">
-                              {formatDate(t.dueDate)}
+                            <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5"
+                              title={`Határidő: ${formatDate(t.dueDate)}`}>
+                              ⏱ {formatDate(t.dueDate)}
                             </span>
+                          )}
+                          {/* The deadline already had a chip; without a label
+                              beside it a second date would be a guessing game. */}
+                          <span className="text-[11px] text-gray-400" title={`Létrehozva: ${formatDateTime(t.createdAt)}`}>
+                            Létrehozva: {formatDate(t.createdAt)}
+                          </span>
+                          {t.archivedAt && (
+                            <span className="text-[11px] text-gray-500 bg-gray-100 rounded px-1.5 py-0.5">Archivált</span>
                           )}
                           {!!t._count?.comments && (
                             <span className="text-[11px] text-gray-500 flex items-center gap-0.5" title={`${t._count.comments} haladás bejegyzés`}>

@@ -58,6 +58,8 @@ export interface PrivateTask {
   ticketId: string | null
   ticket: { id: string; title: string; status: string } | null
   _count?: { comments: number }
+  /** Set once filed away. Absent on the board, which only loads live tasks. */
+  archivedAt?: string | null
   createdAt: string
   updatedAt: string
 }

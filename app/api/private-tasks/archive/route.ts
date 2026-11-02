@@ -16,7 +16,9 @@ export async function GET(request: NextRequest) {
     const tasks = await prisma.privateTask.findMany({
       where: { userId: session.id, archivedAt: { not: null } },
       include: {
-        ticket: { select: { id: true, title: true } },
+        // status is carried so an archived task can be shown alongside live
+        // ones in the filtered board and calendar, which type them the same way.
+        ticket: { select: { id: true, title: true, status: true } },
         events: { orderBy: { createdAt: 'asc' } },
         comments: { orderBy: { createdAt: 'asc' } },
       },
