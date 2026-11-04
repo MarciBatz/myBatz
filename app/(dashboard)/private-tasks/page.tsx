@@ -133,10 +133,6 @@ export default function PrivateTasksPage() {
   const scoped = [...tasks, ...archivedAsTasks].filter(inScope)
   const filtered = scoped.filter(t => matchesFilters(t, filters))
 
-  // Dragging writes the manual order, so it is only offered while that is the
-  // order being shown — otherwise a dropped card would snap straight back.
-  const dragEnabled = filters.sort === 'manual'
-
   function columnTasks(col: PrivateTaskColumnValue) {
     return sortTasks(filtered.filter(t => t.column === col), filters.sort)
   }
@@ -150,7 +146,11 @@ export default function PrivateTasksPage() {
     const task = tasks.find(t => t.id === id)
     if (!task || task.column === col) return
 
-    // Optimistic: move the card, then persist the destination column's order.
+    // A drop changes the column and nothing else — there is no drop target
+    // between cards — so it works under every sort. The card goes to the front
+    // of the destination column's manual order, which is where a drop has
+    // always put it; under a sort that order isn't on screen, and the card
+    // lands wherever the sort places it.
     const previous = tasks
     const moved = { ...task, column: col }
     const next = tasks.map(t => (t.id === id ? moved : t))
@@ -448,7 +448,7 @@ export default function PrivateTasksPage() {
                     {list.map(t => (
                       <article
                         key={t.id}
-                        draggable={dragEnabled && !t.archivedAt}
+                        draggable={!t.archivedAt}
                         onDragStart={() => { dragIdRef.current = t.id; setDragId(t.id) }}
                         onDragEnd={() => { dragIdRef.current = null; setDragId(null); setDragOverCol(null) }}
                         onClick={() => setEditing(t)}

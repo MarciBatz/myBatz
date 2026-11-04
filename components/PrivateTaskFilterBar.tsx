@@ -113,7 +113,7 @@ export default function PrivateTaskFilterBar({
             <span className="text-gray-400"> A határidő nélküli feladatok ilyenkor nem jelennek meg.</span>
           )}
           {filters.sort !== 'manual' && (
-            <span className="text-gray-400"> A kézi sorrend átmenetileg nem érvényes, ezért a kártyák nem húzhatók.</span>
+            <span className="text-gray-400"> A kézi sorrend átmenetileg nem érvényes; áthúzni viszont továbbra is lehet más állapotba.</span>
           )}
         </p>
       )}
