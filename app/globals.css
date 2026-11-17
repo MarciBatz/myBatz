@@ -17,6 +17,36 @@ body {
   box-sizing: border-box;
 }
 
+/*
+ * Stop iOS Safari zooming the page in when a field is tapped.
+ *
+ * Safari zooms whenever a focused form control's text is under 16px, and it
+ * does not zoom back out when the field loses focus — which is how buttons end
+ * up off the right edge of the screen. The viewport meta is correct; the font
+ * size is the whole trigger, so 16px is the fix.
+ *
+ * Deliberately *not* done with maximum-scale / user-scalable=no: that would
+ * also take away deliberate pinch-zoom, which people rely on, and Safari
+ * ignores it anyway.
+ *
+ * Matched on a coarse pointer rather than a screen width, because a phone in
+ * landscape is wider than any breakpoint we'd pick but still zooms. Desktop
+ * keeps its 14px controls.
+ *
+ * !important is needed here: these are element selectors competing with the
+ * text-sm / text-xs utility classes sitting on the controls themselves.
+ * Checkboxes, radios and the slider-ish inputs are left out — they carry no
+ * text, and some browsers size them from font-size.
+ */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: 16px !important;
+  }
+}
+
 /* Tiptap editor placeholder */
 .tiptap p.is-editor-empty:first-child::before {
   content: attr(data-placeholder);
