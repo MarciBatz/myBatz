@@ -29,6 +29,9 @@ const createSchema = z.object({
   assigneeId: z.string().optional().nullable(),
   visibility: z.enum(['DEPARTMENT', 'COMPANY_WIDE']).optional(),
   departmentId: z.string().optional().nullable(),
+  // yyyy-mm-dd; stored as UTC midnight, like PrivateTask.dueDate.
+  dueDate: z.string().optional().nullable(),
+  reminderDaysBefore: z.number().int().min(0).max(365).optional().nullable(),
   attachments: z.array(attachmentSchema).optional(),
 })
 
@@ -203,6 +206,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // A calendar day, so midnight UTC — the reminder cron counts whole days.
+    const dueDate = data.dueDate ? new Date(`${data.dueDate.slice(0, 10)}T00:00:00.000Z`) : null
+    if (dueDate && Number.isNaN(dueDate.getTime())) {
+      return NextResponse.json({ error: 'Érvénytelen határidő.' }, { status: 400 })
+    }
+
     const ticket = await prisma.ticket.create({
       data: {
         title: data.title,
@@ -210,6 +219,9 @@ export async function POST(request: NextRequest) {
         priority: data.priority || 'MEDIUM',
         categoryId: data.categoryId || null,
         assigneeId,
+        dueDate,
+        // No deadline means no reminder: there would be nothing to count back from.
+        reminderDaysBefore: dueDate ? (data.reminderDaysBefore ?? null) : null,
         visibility: target.visibility,
         departmentId: target.departmentId,
         createdById: user.id,

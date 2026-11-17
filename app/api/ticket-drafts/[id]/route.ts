@@ -20,6 +20,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         priority: body.priority ?? existing.priority,
         categoryId: body.categoryId !== undefined ? (body.categoryId || null) : existing.categoryId,
         assigneeId: body.assigneeId !== undefined ? (body.assigneeId || null) : existing.assigneeId,
+        dueDate: body.dueDate !== undefined ? (body.dueDate || null) : existing.dueDate,
+        reminderDaysBefore: body.reminderDaysBefore !== undefined ? body.reminderDaysBefore : existing.reminderDaysBefore,
       },
     })
     return NextResponse.json({ draft })

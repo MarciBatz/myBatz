@@ -484,6 +484,80 @@ export async function sendPrivateTaskDeadlineReminderEmail(
 }
 
 /**
+ * Reminds the people working on a public ticket that its deadline is near.
+ *
+ * One batch call rather than a send per recipient: a ticket can have an
+ * assignee and several collaborators, and sendEmail swallows rate-limit
+ * failures, so a loop would look successful while most never went out.
+ */
+export async function sendTicketDeadlineReminderEmail(
+  recipients: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null }[],
+  ticket: { id: string; title: string; dueDate: Date; priority: string }
+): Promise<void> {
+  if (recipients.length === 0) return
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const dueLabel = ticket.dueDate.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+  const priorityLabel = { LOW: 'Alacsony', MEDIUM: 'Közepes', HIGH: 'Magas', CRITICAL: 'Kritikus' }[ticket.priority] ?? ticket.priority
+
+  await sendEmailBatch(recipients.map(r => ({
+    to: r.email,
+    subject: `Közelgő határidő: ${ticket.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6C5CE7;">⏰ Közelgő határidő</h2>
+        <p>Szia ${r.nickname || r.firstName || r.name || 'Kolléga'},</p>
+        <p>Emlékeztetőül: az alábbi feladat határideje közeleg.</p>
+        <div style="background:#f9fafb;border-left:4px solid #6C5CE7;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="font-size:18px;font-weight:bold;margin:0 0 4px;">${ticket.title}</p>
+          <p style="color:#666;margin:0;">Határidő: ${dueLabel}</p>
+          <p style="color:#666;margin:4px 0 0;">Prioritás: ${priorityLabel}</p>
+        </div>
+        <p><a href="${appUrl}/tickets/${ticket.id}" style="color:#6C5CE7;font-weight:bold;">Feladat megnyitása →</a></p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő — ezt a feladat felelőse és a rákapcsolt kollégák kapják meg.</p>
+      </div>
+    `,
+  })))
+}
+
+/**
+ * Tells someone they have been pulled onto a ticket by a colleague.
+ *
+ * This is an access change — the ticket may be one they could not see until
+ * now — so like the department notice it ignores the per-user ticket
+ * preference. Being given work without being told would be worse than an
+ * unwanted mail.
+ */
+export async function sendTicketCollaboratorAddedEmail(
+  recipient: { email: string; name?: string | null; firstName?: string | null; nickname?: string | null },
+  ticket: { id: string; title: string; dueDate?: Date | null },
+  addedByName: string
+): Promise<void> {
+  const appUrl = process.env.APP_URL || 'http://localhost:3000'
+  const dueLabel = ticket.dueDate
+    ? ticket.dueDate.toLocaleDateString('hu-HU', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null
+
+  await sendEmail({
+    to: recipient.email,
+    subject: `Rákapcsoltak egy feladatra: ${ticket.title}`,
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color:#6C5CE7;">👥 Rákapcsoltak egy feladatra</h2>
+        <p>Szia ${recipient.nickname || recipient.firstName || recipient.name || 'Kolléga'},</p>
+        <p><strong>${addedByName}</strong> rákapcsolt az alábbi feladatra, hogy te is dolgozhass rajta.</p>
+        <div style="background:#f9fafb;border-left:4px solid #6C5CE7;padding:16px;border-radius:8px;margin:16px 0;">
+          <p style="font-size:18px;font-weight:bold;margin:0 0 4px;">${ticket.title}</p>
+          ${dueLabel ? `<p style="color:#666;margin:0;">Határidő: ${dueLabel}</p>` : ''}
+        </div>
+        <p>A feladat felelőse nem változott — téged plusz közreműködőként kapcsoltak rá.</p>
+        <p><a href="${appUrl}/tickets/${ticket.id}" style="color:#6C5CE7;font-weight:bold;">Feladat megnyitása →</a></p>
+        <p style="color:#aaa;font-size:12px;margin-top:24px;">myBatz értesítő — ha már nem érintett, a feladat oldalán le tudod magad kapcsolni.</p>
+      </div>
+    `,
+  })
+}
+
+/**
  * Tells a user they've been added to one or more departments. This is a
  * mandatory access-change notice, so it deliberately ignores the per-user
  * ticket notification preferences. Never lists individual tickets.

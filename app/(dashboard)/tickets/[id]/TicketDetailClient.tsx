@@ -8,11 +8,13 @@ import Link from 'next/link'
 import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
-import { formatRelativeTime, formatDateTime, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
+import { formatRelativeTime, formatDateTime, formatDate, fullDisplayName, buildUniqueDisplayNames, isOnline, formatLastSeen } from '@/lib/utils'
 import { COLUMN_LABELS, COLUMN_COLORS, PRIVATE_TASK_COLUMNS, type PrivateTaskColumnValue } from '@/lib/private-tasks'
 import FileUpload from '@/components/FileUpload'
 import AttachmentList from '@/components/AttachmentList'
 import DepartmentBadge from '@/components/DepartmentBadge'
+import TicketCollaborators, { type Collaborator } from '@/components/TicketCollaborators'
+import DueDateChip from '@/components/DueDateChip'
 import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR, type DepartmentSummary } from '@/lib/departments'
 
 interface User { id: string; name: string | null; nickname?: string | null; email: string; role: string }
@@ -31,6 +33,9 @@ interface Ticket {
   category?: { id: string; name: string } | null
   assignee?: NamedUser | null
   createdBy: NamedUser
+  collaborators: Collaborator[]
+  dueDate: string | null
+  reminderDaysBefore: number | null
   comments: Comment[]
   activities: Activity[]
   attachments: Attachment[]
@@ -127,13 +132,17 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
     })
   }, [loadTicket])
 
-  async function updateField(field: string, value: string | null) {
+  async function updateFields(patch: Record<string, string | number | boolean | null>) {
     const res = await fetch(`/api/tickets/${ticketId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ [field]: value }),
+      body: JSON.stringify(patch),
     })
     if (res.ok) loadTicket()
+  }
+
+  function updateField(field: string, value: string | null) {
+    return updateFields({ [field]: value })
   }
 
   async function submitComment(e: React.FormEvent) {
@@ -255,6 +264,11 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
       department_changed: `részleget változtatott: ${activity.oldValue} → ${activity.newValue}`,
       category_changed: 'kategóriát változtatott',
       nudge_sent: `emlékeztette ${activity.newValue} felhasználót, hogy foglalkozzon a feladattal`,
+      due_date_changed: `határidőt változtatott: ${activity.oldValue} → ${activity.newValue}`,
+      collaborator_added: `rákapcsolta ${activity.newValue} kollégát a feladatra`,
+      collaborator_joined: 'rákapcsolódott a feladatra',
+      collaborator_removed: `lekapcsolta ${activity.oldValue} kollégát a feladatról`,
+      collaborator_left: 'lekapcsolódott a feladatról',
     }
     return map[activity.action] || activity.action
   }
@@ -263,6 +277,15 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
   if (!ticket) return <div className="p-6 text-gray-600">A feladat nem található</div>
 
   const ticketDeptValue = ticket.visibility === COMPANY_WIDE ? COMPANY_WIDE : (ticket.department?.id ?? '')
+
+  // Who can be @mentioned: the department-eligible list plus this ticket's
+  // collaborators, who can read the thread even from another department.
+  // Separate from `agents`, which also feeds the assignee dropdown — who may
+  // *own* a department's ticket is a different rule, and offering a name the
+  // server would reject there would be a dead option.
+  const collaboratorUsers = (ticket.collaborators ?? []).map(c => c.user)
+  const agentIds = new Set(agents.map(a => a.id))
+  const mentionables = [...agents, ...collaboratorUsers.filter(u => !agentIds.has(u.id))]
   const deptTarget = deptOverride ?? ticketDeptValue
 
   return (
@@ -297,6 +320,9 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                 <div className="flex items-start gap-2 flex-wrap mb-1">
                   <h1 className="text-xl font-bold text-gray-900">{ticket.title}</h1>
                   <DepartmentBadge visibility={ticket.visibility} department={ticket.department} />
+                  {/* Beside the title, not only in the sidebar select: a
+                      deadline that has passed is the thing to notice first. */}
+                  <DueDateChip dueDate={ticket.dueDate} closed={ticket.status === 'CLOSED'} className="mt-1" />
                 </div>
                 <p className="text-xs text-gray-400">
                   Létrehozta: {fullDisplayName(ticket.createdBy) || ticket.createdBy.email} · {formatDateTime(ticket.createdAt)}
@@ -412,8 +438,8 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                     minHeight="100px"
                   />
                   {mentionQuery !== null && (() => {
-                    const uniqueNames = buildUniqueDisplayNames(agents)
-                    const filtered = agents.filter(a => {
+                    const uniqueNames = buildUniqueDisplayNames(mentionables)
+                    const filtered = mentionables.filter(a => {
                       if (a.id === user.id) return false
                       const uname = uniqueNames[a.id] || a.email
                       return uname.toLowerCase().includes(mentionQuery.toLowerCase()) || a.email.toLowerCase().includes(mentionQuery.toLowerCase())
@@ -488,6 +514,21 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
             <PersonCard label="Kiosztotta" person={ticket.createdBy} />
           </div>
 
+          {/* Extra colleagues on the ticket. The assignee above is unchanged —
+              one ticket, one owner; this is who else is working on it. */}
+          <TicketCollaborators
+            ticketId={ticket.id}
+            collaborators={ticket.collaborators ?? []}
+            viewerId={user.id}
+            canManage={
+              user.role === 'ADMIN'
+              || ticket.createdBy?.id === user.id
+              || ticket.assignee?.id === user.id
+            }
+            canJoin={user.role !== 'READER'}
+            onChanged={loadTicket}
+          />
+
           {/* Add to my private tasks — only the assignee sees this */}
           {user.id === ticket.assignee?.id && ticket.status !== 'CLOSED' && (
             <button
@@ -542,6 +583,55 @@ export default function TicketDetailClient({ ticketId, user }: { ticketId: strin
                   </select>
                 )}
               </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Határidő</label>
+                {user.role === 'READER' ? (
+                  <p className="text-sm text-gray-700 px-2 py-1.5">
+                    {ticket.dueDate ? formatDate(ticket.dueDate) : '—'}
+                  </p>
+                ) : (
+                  <input
+                    type="date"
+                    value={ticket.dueDate ? ticket.dueDate.slice(0, 10) : ''}
+                    onChange={e => updateFields({ dueDate: e.target.value || null })}
+                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400"
+                  />
+                )}
+              </div>
+              {/* The reminder is only offered once there is a deadline: with
+                  nothing to count back from it could never fire, and an
+                  inactive control that looks set is worse than none. */}
+              {ticket.dueDate && user.role !== 'READER' && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Emlékeztető e-mail</label>
+                  <select
+                    value={ticket.reminderDaysBefore != null ? String(ticket.reminderDaysBefore) : ''}
+                    onChange={e => updateFields({ reminderDaysBefore: e.target.value === '' ? null : Number(e.target.value) })}
+                    className="w-full px-2 py-1.5 border border-gray-200 rounded-lg text-sm bg-white focus:outline-none focus:border-indigo-400">
+                    <option value="">Nincs emlékeztető</option>
+                    <option value="0">A határidő napján</option>
+                    <option value="1">1 nappal előtte</option>
+                    <option value="2">2 nappal előtte</option>
+                    <option value="3">3 nappal előtte</option>
+                    <option value="7">1 héttel előtte</option>
+                  </select>
+                  <p className="text-[11px] text-gray-400 mt-1">
+                    {ticket.reminderDaysBefore != null
+                      ? 'A felelős és a rákapcsolt kollégák kapják meg, reggel.'
+                      : 'Ha bekapcsolod, a felelős és a rákapcsolt kollégák kapnak e-mailt.'}
+                  </p>
+                </div>
+              )}
+              {ticket.dueDate && user.role === 'READER' && ticket.reminderDaysBefore != null && (
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Emlékeztető e-mail</label>
+                  <p className="text-sm text-gray-700 px-2 py-1.5">
+                    {ticket.reminderDaysBefore === 0 ? 'A határidő napján'
+                      : ticket.reminderDaysBefore === 7 ? '1 héttel előtte'
+                      : `${ticket.reminderDaysBefore} nappal előtte`}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="text-xs text-gray-500 block mb-1">Kategória</label>
                 {user.role === 'READER' || ticket.visibility === COMPANY_WIDE ? (

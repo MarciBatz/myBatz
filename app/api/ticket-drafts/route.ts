@@ -28,6 +28,8 @@ export async function POST(request: NextRequest) {
         priority: body.priority || 'MEDIUM',
         categoryId: body.categoryId || null,
         assigneeId: body.assigneeId || null,
+        dueDate: body.dueDate || null,
+        reminderDaysBefore: body.reminderDaysBefore ?? null,
       },
     })
     return NextResponse.json({ draft }, { status: 201 })

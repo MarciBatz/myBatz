@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma'
 import { requireReadWrite, unauthorizedResponse , forbiddenResponse} from '@/lib/auth'
 import { sendNewCommentEmail } from '@/lib/email'
 import { fullDisplayName } from '@/lib/utils'
-import { canAccessTicket, notFoundResponse, getEligibleTicketUsers } from '@/lib/departments-access'
+import { canAccessTicket, notFoundResponse, getMentionableTicketUsers } from '@/lib/departments-access'
+import { getActivityRecipients } from '@/lib/ticket-collaborators'
 
 const attachmentSchema = z.object({
   fileUrl: z.string(),
@@ -47,7 +48,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     // Everyone who may be mentioned/notified on this ticket. Used below so a
     // crafted @mention can't reach someone outside the ticket's department.
-    const eligible = await getEligibleTicketUsers(ticket)
+    // Includes the ticket's collaborators: they can read the thread, so
+    // "@mindenki" has to reach them and they have to be addressable by name.
+    const eligible = await getMentionableTicketUsers(id, ticket)
     const eligibleIds = new Set(eligible.map(u => u.id))
 
     const comment = await prisma.comment.create({
@@ -89,12 +92,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const ticketLink = `/tickets/${id}`
 
     if (!data.isInternal) {
-      // Collect unique users to notify: assignee + creator, excluding comment author
-      const toNotify = new Map<string, { id: string; email: string; name: string | null; nickname: string | null }>()
-      if (ticket.assignee && ticket.assignee.id !== user.id) toNotify.set(ticket.assignee.id, ticket.assignee)
-      if (ticket.createdBy && ticket.createdBy.id !== user.id) toNotify.set(ticket.createdBy.id, ticket.createdBy)
-
-      const notifyList = Array.from(toNotify.values())
+      // Assignee, creator and anyone pulled onto the ticket, minus the author.
+      // Deduplicated by id in one central place, so somebody who is both
+      // assignee and a collaborator is still mailed once.
+      const notifyList = await getActivityRecipients(id, user.id)
       if (notifyList.length > 0) {
         await sendNewCommentEmail(notifyList, { id, title: ticket.title }, { body: data.body, authorName })
         await prisma.notificationLog.createMany({

@@ -38,6 +38,11 @@ export async function getUserDepartmentIds(userId: string): Promise<string[]> {
  * ADMIN gets `{}` (everything). Everyone else sees their departments' tickets
  * plus all company-wide ones — a user with no departments still sees
  * company-wide tickets, which is intentional.
+ *
+ * Plus any ticket they have been pulled onto as a collaborator. That is how a
+ * colleague from another department can help: the grant is per ticket, it does
+ * not widen anything else, and it disappears the moment they are taken off.
+ * Who may hand out that grant is decided in lib/ticket-collaborators.ts.
  */
 export async function ticketAccessWhere(user: AccessActor): Promise<Prisma.TicketWhereInput> {
   if (user.role === 'ADMIN') return {}
@@ -46,6 +51,7 @@ export async function ticketAccessWhere(user: AccessActor): Promise<Prisma.Ticke
     OR: [
       { visibility: 'COMPANY_WIDE' },
       ...(departmentIds.length > 0 ? [{ departmentId: { in: departmentIds } }] : []),
+      { collaborators: { some: { userId: user.id } } },
     ],
   }
 }
@@ -162,6 +168,34 @@ export async function getEligibleTicketUsers(target: {
     select,
     orderBy: { createdAt: 'asc' },
   })
+}
+
+/**
+ * The eligible list above plus this ticket's collaborators.
+ *
+ * Mentions (and "@mindenki") are drawn from who can see the ticket, and a
+ * collaborator from another department can. Without this they would read a
+ * thread they cannot be addressed in. Assignee eligibility deliberately does
+ * *not* use this — who may own a department's ticket is a separate rule.
+ */
+export async function getMentionableTicketUsers(
+  ticketId: string,
+  target: { visibility: string; departmentId: string | null }
+) {
+  const eligible = await getEligibleTicketUsers(target)
+  const seen = new Set(eligible.map(u => u.id))
+  const collaborators = await prisma.ticketCollaborator.findMany({
+    where: { ticketId },
+    select: {
+      user: {
+        select: {
+          id: true, email: true, name: true, firstName: true, lastName: true,
+          nickname: true, role: true, avatarUrl: true,
+        },
+      },
+    },
+  })
+  return [...eligible, ...collaborators.map(c => c.user).filter(u => !seen.has(u.id))]
 }
 
 /** True if this user may be the assignee of a ticket with this target. */

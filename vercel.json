@@ -15,6 +15,10 @@
     {
       "path": "/api/cron/private-task-reminders",
       "schedule": "10 8 * * *"
+    },
+    {
+      "path": "/api/cron/ticket-reminders",
+      "schedule": "20 8 * * *"
     }
   ]
 }

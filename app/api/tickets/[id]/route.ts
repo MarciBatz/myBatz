@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
 import { requireSession, requireReadWrite, getSessionFromRequest, unauthorizedResponse, forbiddenResponse } from '@/lib/auth'
 import { sendTicketUpdateEmail } from '@/lib/email'
+import { getActivityRecipients } from '@/lib/ticket-collaborators'
 import { hasPermission } from '@/lib/permissions'
 import { COMPANY_WIDE } from '@/lib/departments'
 import { canAccessTicket, notFoundResponse, resolveTicketTarget, isEligibleAssignee } from '@/lib/departments-access'
@@ -18,6 +19,10 @@ const updateSchema = z.object({
   // Hungarian message rather than Zod's raw type error.
   assigneeId: z.string().optional().nullable(),
   pinned: z.boolean().optional(),
+  // yyyy-mm-dd or null to clear. Stored as UTC midnight so the reminder cron
+  // can count whole days, exactly as PrivateTask does.
+  dueDate: z.string().optional().nullable(),
+  reminderDaysBefore: z.number().int().min(0).max(365).optional().nullable(),
   // ADMIN-only; validated below.
   visibility: z.enum(['DEPARTMENT', 'COMPANY_WIDE']).optional(),
   departmentId: z.string().optional().nullable(),
@@ -43,6 +48,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           orderBy: { createdAt: 'asc' },
         },
         attachments: true,
+        collaborators: {
+          include: {
+            user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true, lastSeenAt: true } },
+          },
+          orderBy: { createdAt: 'asc' },
+        },
         activities: {
           include: {
             user: { select: { id: true, name: true, firstName: true, lastName: true, nickname: true, email: true, avatarUrl: true } },
@@ -197,6 +208,31 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       categoryUpdate = { categoryId: null }
     }
 
+    // The deadline is a calendar day, not an instant: midnight UTC, so the
+    // daily cron's whole-day arithmetic is unaffected by the hour it runs.
+    const nextDueDate = data.dueDate !== undefined
+      ? (data.dueDate ? new Date(`${data.dueDate.slice(0, 10)}T00:00:00.000Z`) : null)
+      : undefined
+    if (nextDueDate !== undefined && nextDueDate !== null && Number.isNaN(nextDueDate.getTime())) {
+      return NextResponse.json({ error: 'Érvénytelen határidő.' }, { status: 400 })
+    }
+
+    // No deadline means no reminder, whatever was selected — a reminder with
+    // nothing to count back from would never fire and would sit in the UI
+    // looking active.
+    const effectiveDue = nextDueDate !== undefined ? nextDueDate : existing.dueDate
+    const requestedReminder = data.reminderDaysBefore !== undefined
+      ? data.reminderDaysBefore
+      : existing.reminderDaysBefore
+    const nextReminder = effectiveDue ? requestedReminder : null
+
+    // Re-arm the reminder whenever the deadline or the lead time moves:
+    // reminderSentAt is what stops the cron repeating itself, so leaving it set
+    // would mean a deadline pushed back a month never reminds anyone again.
+    const reminderConfigChanged =
+      (nextDueDate !== undefined && nextDueDate?.getTime() !== existing.dueDate?.getTime())
+      || nextReminder !== existing.reminderDaysBefore
+
     // Field update and its activity log entries commit together, so a department
     // change can never land without its audit trail.
     const ticket = await prisma.ticket.update({
@@ -209,6 +245,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         ...(categoryUpdate !== null && categoryUpdate),
         ...(data.assigneeId !== undefined && { assigneeId: data.assigneeId }),
         ...(data.pinned !== undefined && { pinned: data.pinned }),
+        ...(nextDueDate !== undefined && { dueDate: nextDueDate }),
+        ...((data.dueDate !== undefined || data.reminderDaysBefore !== undefined) && { reminderDaysBefore: nextReminder }),
+        ...(reminderConfigChanged && { reminderSentAt: null }),
         ...(newTarget !== null && { visibility: newTarget.visibility, departmentId: newTarget.departmentId }),
       },
       include: {
@@ -238,6 +277,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       activityLogs.push({ ticketId: id, userId: user.id, action: 'assignee_changed', oldValue: existing.assigneeId || 'none', newValue: data.assigneeId || 'none' })
       changes.push('Felelős megváltozott')
     }
+    if (nextDueDate !== undefined && nextDueDate?.getTime() !== existing.dueDate?.getTime()) {
+      const fmt = (d: Date | null) => d ? d.toISOString().slice(0, 10) : 'nincs'
+      activityLogs.push({ ticketId: id, userId: user.id, action: 'due_date_changed', oldValue: fmt(existing.dueDate), newValue: fmt(nextDueDate) })
+      changes.push(`Határidő: ${fmt(existing.dueDate)} → ${fmt(nextDueDate)}`)
+    }
     if (categoryUpdate !== null && categoryUpdate.categoryId !== existing.categoryId) {
       activityLogs.push({ ticketId: id, userId: user.id, action: 'category_changed', oldValue: existing.categoryId || 'none', newValue: categoryUpdate.categoryId || 'none' })
       // kategória változás nem küld e-mailt
@@ -254,14 +298,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       await prisma.activityLog.createMany({ data: activityLogs })
     }
 
-    // Notify relevant users
+    // Notify relevant users: assignee, creator and anyone pulled onto the
+    // ticket. One central list, deduplicated by id — the person who made the
+    // change is never mailed about their own edit.
     if (changes.length > 0) {
-      const notifyUsers: { email: string; name?: string | null }[] = []
-      if (ticket.assignee && ticket.assignee.id !== user.id) notifyUsers.push(ticket.assignee)
-      if (ticket.createdBy && ticket.createdBy.id !== user.id && !notifyUsers.find(u => u.email === ticket.createdBy!.email)) {
-        notifyUsers.push(ticket.createdBy)
-      }
-
+      const notifyUsers = await getActivityRecipients(id, user.id)
       if (notifyUsers.length > 0) {
         await sendTicketUpdateEmail(notifyUsers, ticket, changes.join('; '))
       }

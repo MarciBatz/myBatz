@@ -9,6 +9,7 @@ import { formatRelativeTime, formatDate, displayName, fullDisplayName, buildUniq
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import FileUpload, { type UploadedFile } from '@/components/FileUpload'
 import DepartmentBadge from '@/components/DepartmentBadge'
+import DueDateChip from '@/components/DueDateChip'
 import DepartmentFilterBar, { type SelectableDepartment } from '@/components/DepartmentFilterBar'
 import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR } from '@/lib/departments'
 import { useVisibleInterval } from '@/lib/use-visible-interval'
@@ -25,6 +26,7 @@ interface Stats { open: number; inProgress: number; awaiting: number; closed: nu
 interface Ticket {
   id: string; title: string; description: string; status: string; priority: string
   createdAt: string; updatedAt: string; pinned: boolean
+  dueDate: string | null
   visibility: string
   department?: { id: string; name: string; color: string } | null
   category?: { id: string; name: string } | null
@@ -436,7 +438,10 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                                     against the "Kiemelt" badge and wrapped its text instead. */}
                                 <p className="min-w-0 text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate max-w-xs">{ticket.title}</p>
                               </div>
-                              <p className="text-xs text-gray-400 truncate max-w-xs mt-0.5">{ticket.description.replace(/<[^>]+>/g, '').slice(0, 80)}...</p>
+                              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                                <DueDateChip dueDate={ticket.dueDate} closed={ticket.status === 'CLOSED'} />
+                                <p className="text-xs text-gray-400 truncate max-w-xs">{ticket.description.replace(/<[^>]+>/g, '').slice(0, 80)}...</p>
+                              </div>
                             </div>
                           </div>
                         </Link>
@@ -514,6 +519,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                     {ticket.category && (
                       <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md">{ticket.category.name}</span>
                     )}
+                    <DueDateChip dueDate={ticket.dueDate} closed={ticket.status === 'CLOSED'} />
                     <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(ticket.updatedAt)}</span>
                   </div>
                 </Link>
@@ -599,6 +605,9 @@ function CreateTicketModal({
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [priority, setPriority] = useState('MEDIUM')
+  // yyyy-mm-dd as the date input holds it; '' means no deadline.
+  const [dueDate, setDueDate] = useState('')
+  const [reminderDaysBefore, setReminderDaysBefore] = useState('')
   const [categoryId, setCategoryId] = useState('')
   const [assigneeId, setAssigneeId] = useState('')
   const [attachments, setAttachments] = useState<UploadedFile[]>([])
@@ -689,7 +698,13 @@ function CreateTicketModal({
     if (!hasContent) return
 
     const t = setTimeout(async () => {
-      const payload = { title, description, priority, categoryId: categoryId || null, assigneeId: assigneeId || null }
+      const payload = {
+        title, description, priority,
+        categoryId: categoryId || null,
+        assigneeId: assigneeId || null,
+        dueDate: dueDate || null,
+        reminderDaysBefore: dueDate && reminderDaysBefore !== '' ? Number(reminderDaysBefore) : null,
+      }
       if (draftId) {
         await fetch(`/api/ticket-drafts/${draftId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }).catch(() => {})
       } else if (!creatingRef.current) {
@@ -701,15 +716,17 @@ function CreateTicketModal({
       }
     }, 1000)
     return () => clearTimeout(t)
-  }, [title, description, priority, categoryId, assigneeId, draftId])
+  }, [title, description, priority, categoryId, assigneeId, dueDate, reminderDaysBefore, draftId])
 
-  function loadDraft(dr: { id: string; title: string; description: string; priority: string; categoryId: string | null; assigneeId: string | null }) {
+  function loadDraft(dr: { id: string; title: string; description: string; priority: string; categoryId: string | null; assigneeId: string | null; dueDate?: string | null; reminderDaysBefore?: number | null }) {
     setTitle(dr.title || '')
     setDescription(dr.description || '')
     editorRef.current?.setContent(dr.description || '')
     setPriority(dr.priority || 'MEDIUM')
     setCategoryId(dr.categoryId || '')
     setAssigneeId(dr.assigneeId || '')
+    setDueDate(dr.dueDate || '')
+    setReminderDaysBefore(dr.reminderDaysBefore != null ? String(dr.reminderDaysBefore) : '')
     setDraftId(dr.id)
     setShowDrafts(false)
   }
@@ -753,6 +770,9 @@ function CreateTicketModal({
           assigneeId: effectiveAssigneeId,
           visibility: companyWide ? COMPANY_WIDE : 'DEPARTMENT',
           departmentId: companyWide ? null : target,
+          dueDate: dueDate || null,
+          // No deadline → no reminder, whatever the select still shows.
+          reminderDaysBefore: dueDate && reminderDaysBefore !== '' ? Number(reminderDaysBefore) : null,
           attachments,
         }),
       })
@@ -809,6 +829,28 @@ function CreateTicketModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">Leírás</label>
             <RichTextEditor editorRef={editorRef} value={description} onChange={(html) => setDescription(html)} placeholder="Részletes leírás..." minHeight="120px" />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Határidő</label>
+              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white" />
+            </div>
+            {/* Only once there is a deadline: a lead time with nothing to count
+                back from could never fire. */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">Emlékeztető e-mail</label>
+              <select value={reminderDaysBefore} onChange={e => setReminderDaysBefore(e.target.value)}
+                disabled={!dueDate}
+                className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:border-indigo-400 bg-white disabled:bg-gray-50 disabled:text-gray-400">
+                <option value="">Nincs emlékeztető</option>
+                <option value="0">A határidő napján</option>
+                <option value="1">1 nappal előtte</option>
+                <option value="2">2 nappal előtte</option>
+                <option value="3">3 nappal előtte</option>
+                <option value="7">1 héttel előtte</option>
+              </select>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

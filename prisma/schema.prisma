@@ -92,6 +92,8 @@ model User {
 
   ticketsCreated  Ticket[]          @relation("CreatedBy")
   ticketsAssigned Ticket[]          @relation("AssignedTo")
+  ticketCollaborations TicketCollaborator[] @relation("TicketCollaborator")
+  collaboratorsAdded   TicketCollaborator[] @relation("TicketCollaboratorAddedBy")
   comments        Comment[]
   activities      ActivityLog[]
   notifications   NotificationLog[]
@@ -150,6 +152,11 @@ model Ticket {
   status      TicketStatus @default(OPEN)
   priority    Priority     @default(MEDIUM)
   pinned      Boolean      @default(false)
+  // Date-only in practice: written from an <input type="date"> as UTC midnight,
+  // exactly like PrivateTask.dueDate, so the reminder cron can compare whole days.
+  dueDate     DateTime?
+  reminderDaysBefore Int?      // days before dueDate to send the email; null = no reminder
+  reminderSentAt     DateTime? // set once sent, so the daily cron doesn't repeat it
   // Visibility scope. DEPARTMENT ⇒ departmentId set; COMPANY_WIDE ⇒ null.
   visibility   TicketVisibility @default(DEPARTMENT)
   departmentId String?
@@ -168,6 +175,7 @@ model Ticket {
   activities  ActivityLog[]
   notifications NotificationLog[]
   privateTasks PrivateTask[]
+  collaborators TicketCollaborator[]
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
@@ -368,6 +376,10 @@ model TicketDraft {
   priority    String   @default("MEDIUM")
   categoryId  String?
   assigneeId  String?
+  // Kept on the draft as well, so a deadline typed into the new-ticket form
+  // isn't silently lost when the draft is reloaded.
+  dueDate     String?  // yyyy-mm-dd, exactly as the date input holds it
+  reminderDaysBefore Int?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -401,6 +413,31 @@ model AuditLog {
   detail    String?
   ip        String?
   createdAt DateTime @default(now())
+}
+
+/**
+ * Extra colleagues working on a public ticket. The ticket keeps exactly one
+ * assignee — this is "who else is on it", not a second owner.
+ *
+ * Being a collaborator *grants access* to the ticket (see ticketAccessWhere),
+ * which is the point: help can be pulled in from another department. That makes
+ * adding someone a deliberate act, so who may do it is restricted in
+ * lib/ticket-collaborators.ts rather than per route.
+ */
+model TicketCollaborator {
+  id        String   @id @default(cuid())
+  ticketId  String
+  ticket    Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User     @relation("TicketCollaborator", fields: [userId], references: [id], onDelete: Cascade)
+  // Who pulled them in; null once that account is deleted, and null for a
+  // self-join, which is how the two cases are told apart afterwards.
+  addedById String?
+  addedBy   User?    @relation("TicketCollaboratorAddedBy", fields: [addedById], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+
+  @@unique([ticketId, userId])
+  @@index([userId])
 }
 
 model NotificationLog {
