@@ -2,14 +2,12 @@
 
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import Link from 'next/link'
-import PriorityBadge from '@/components/PriorityBadge'
 import StatusBadge from '@/components/StatusBadge'
 import Avatar from '@/components/Avatar'
 import { formatRelativeTime, formatDate, displayName, fullDisplayName, buildUniqueDisplayNames } from '@/lib/utils'
 import RichTextEditor, { type RichTextEditorHandle } from '@/components/RichTextEditor'
 import FileUpload, { type UploadedFile } from '@/components/FileUpload'
-import DepartmentBadge from '@/components/DepartmentBadge'
-import DueDateChip from '@/components/DueDateChip'
+import TicketChips from '@/components/TicketChips'
 import DepartmentFilterBar, { type SelectableDepartment } from '@/components/DepartmentFilterBar'
 import { COMPANY_WIDE, COMPANY_WIDE_LABEL, COMPANY_WIDE_COLOR } from '@/lib/departments'
 import { useVisibleInterval } from '@/lib/use-visible-interval'
@@ -20,6 +18,19 @@ interface TodayData {
   officeWeek: { assignedUser: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } | null } | null
   events: { id: string; title: string; createdBy: { name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
   vacations: { id: string; note: string | null; user: { id: string; name: string | null; firstName: string | null; lastName: string | null; nickname: string | null } }[]
+}
+
+/**
+ * A short, plain-text taste of a ticket's description for the list row.
+ *
+ * Tags become a space rather than nothing: stripping them outright ran the
+ * words together ("TÉMAnyitottzárt..."), because the text on either side of a
+ * </p><p> has no whitespace of its own. The slice is a cap on what reaches the
+ * DOM; the visible ellipsis is CSS truncation at the column's width.
+ */
+function previewText(html: string): string {
+  const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+  return text.length > 60 ? `${text.slice(0, 60).trimEnd()}…` : text
 }
 
 interface Stats { open: number; inProgress: number; awaiting: number; closed: number }
@@ -412,10 +423,7 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                 <thead>
                   <tr className="text-left text-xs text-gray-400 uppercase tracking-wider border-b border-gray-50">
                     <th className="px-5 py-3 font-medium">Feladat</th>
-                    <th className="px-4 py-3 font-medium">Részleg</th>
-                    <th className="px-4 py-3 font-medium">Kategória</th>
                     <th className="px-4 py-3 font-medium">Státusz</th>
-                    <th className="px-4 py-3 font-medium">Prioritás</th>
                     <th className="px-4 py-3 font-medium">Felelős</th>
                     <th className="px-4 py-3 font-medium">Frissítve</th>
                     {user.role !== 'READER' && <th className="px-3 py-3 font-medium"></th>}
@@ -424,11 +432,17 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                 <tbody className="divide-y divide-gray-50">
                   {tickets.map(ticket => (
                     <tr key={ticket.id} className={`transition-colors ${ticket.pinned ? 'bg-amber-50 hover:bg-amber-100/60 border-l-4 border-l-amber-400' : 'hover:bg-gray-50/50'}`}>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4 align-top">
                         <Link href={`/tickets/${ticket.id}`} className="group">
                           <div className="flex items-start gap-3">
                             <Avatar name={ticket.createdBy.name} firstName={ticket.createdBy.firstName} lastName={ticket.createdBy.lastName} nickname={ticket.createdBy.nickname} email={ticket.createdBy.email} avatarUrl={ticket.createdBy.avatarUrl} />
-                            <div className="min-w-0">
+                            {/* Everything about the ticket itself lives in this
+                                one cell, bounded by max-w-md. The chips wrap
+                                inside that bound rather than widening the
+                                column, which is what four separate columns for
+                                department, category, priority and deadline were
+                                doing to the table. */}
+                            <div className="min-w-0 max-w-md">
                               <div className="flex items-center gap-1.5">
                                 {ticket.pinned && (
                                   <span className="shrink-0 whitespace-nowrap text-amber-500 text-xs font-semibold">★ Kiemelt</span>
@@ -436,29 +450,29 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                                 {/* min-w-0 is required here: a flex item with nowrap text otherwise
                                     refuses to shrink below its full (untruncated) width, which pushed
                                     against the "Kiemelt" badge and wrapped its text instead. */}
-                                <p className="min-w-0 text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate max-w-xs">{ticket.title}</p>
+                                <p className="min-w-0 text-sm font-medium text-gray-900 group-hover:text-indigo-600 truncate">{ticket.title}</p>
                               </div>
-                              <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
-                                <DueDateChip dueDate={ticket.dueDate} closed={ticket.status === 'CLOSED'} />
-                                <p className="text-xs text-gray-400 truncate max-w-xs">{ticket.description.replace(/<[^>]+>/g, '').slice(0, 80)}...</p>
+                              <div className="mt-1.5">
+                                <TicketChips
+                                  visibility={ticket.visibility}
+                                  department={ticket.department}
+                                  category={ticket.category}
+                                  priority={ticket.priority}
+                                  dueDate={ticket.dueDate}
+                                  closed={ticket.status === 'CLOSED'}
+                                />
                               </div>
+                              {previewText(ticket.description) && (
+                                <p className="text-xs text-gray-400 truncate mt-1.5">
+                                  {previewText(ticket.description)}
+                                </p>
+                              )}
                             </div>
                           </div>
                         </Link>
                       </td>
-                      <td className="px-4 py-4">
-                        <DepartmentBadge visibility={ticket.visibility} department={ticket.department} />
-                      </td>
-                      <td className="px-4 py-4">
-                        {ticket.category ? (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-purple-50 text-purple-700">
-                            {ticket.category.name}
-                          </span>
-                        ) : <span className="text-gray-300 text-xs">—</span>}
-                      </td>
-                      <td className="px-4 py-4"><StatusBadge status={ticket.status} /></td>
-                      <td className="px-4 py-4"><PriorityBadge priority={ticket.priority} /></td>
-                      <td className="px-4 py-4">
+                      <td className="px-4 py-4 align-top"><StatusBadge status={ticket.status} /></td>
+                      <td className="px-4 py-4 align-top">
                         {ticket.assignee ? (
                           <div className="flex items-center gap-2">
                             <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} lastName={ticket.assignee.lastName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
@@ -466,11 +480,11 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
                           </div>
                         ) : <span className="text-gray-300 text-xs">Nincs hozzárendelve</span>}
                       </td>
-                      <td className="px-4 py-4">
-                        <span className="text-xs text-gray-400">{formatRelativeTime(ticket.updatedAt)}</span>
+                      <td className="px-4 py-4 align-top">
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{formatRelativeTime(ticket.updatedAt)}</span>
                       </td>
                       {user.role !== 'READER' && (
-                        <td className="px-3 py-4">
+                        <td className="px-3 py-4 align-top">
                           <div className="flex items-center gap-1">
                             <button
                               onClick={() => togglePin(ticket.id, ticket.pinned)}
@@ -504,23 +518,35 @@ export default function DashboardClient({ user, ticketsOnly = false }: { user: U
               {tickets.map(ticket => (
                 <Link key={ticket.id} href={`/tickets/${ticket.id}`}
                   className={`block p-4 transition-colors ${ticket.pinned ? 'bg-amber-50 hover:bg-amber-100/60 border-l-4 border-l-amber-400' : 'hover:bg-gray-50'}`}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
-                    <div className="flex-1 min-w-0">
-                      {ticket.pinned && (
-                        <span className="block shrink-0 whitespace-nowrap text-amber-500 text-xs font-semibold mb-0.5">★ Kiemelt</span>
-                      )}
-                      <p className="text-sm font-medium text-gray-900">{ticket.title}</p>
-                    </div>
-                    <PriorityBadge priority={ticket.priority} />
-                  </div>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <DepartmentBadge visibility={ticket.visibility} department={ticket.department} size="xs" />
+                  {ticket.pinned && (
+                    <span className="block whitespace-nowrap text-amber-500 text-xs font-semibold mb-0.5">★ Kiemelt</span>
+                  )}
+                  <p className="text-sm font-medium text-gray-900 mb-1.5">{ticket.title}</p>
+                  {/* Same chip row as the table, in the same order, so the two
+                      views read the same way on a phone and on a desk. */}
+                  <TicketChips
+                    visibility={ticket.visibility}
+                    department={ticket.department}
+                    category={ticket.category}
+                    priority={ticket.priority}
+                    dueDate={ticket.dueDate}
+                    closed={ticket.status === 'CLOSED'}
+                    size="xs"
+                  />
+                  {previewText(ticket.description) && (
+                    <p className="text-xs text-gray-400 truncate mt-1.5">{previewText(ticket.description)}</p>
+                  )}
+                  {/* Status, who has it and when it last moved — the three
+                      things that are columns on the desktop table. */}
+                  <div className="flex items-center gap-2 mt-2.5">
                     <StatusBadge status={ticket.status} />
-                    {ticket.category && (
-                      <span className="text-xs bg-purple-50 text-purple-700 px-2 py-0.5 rounded-md">{ticket.category.name}</span>
-                    )}
-                    <DueDateChip dueDate={ticket.dueDate} closed={ticket.status === 'CLOSED'} />
-                    <span className="text-xs text-gray-400 ml-auto">{formatRelativeTime(ticket.updatedAt)}</span>
+                    {ticket.assignee ? (
+                      <span className="flex items-center gap-1.5 min-w-0">
+                        <Avatar name={ticket.assignee.name} firstName={ticket.assignee.firstName} lastName={ticket.assignee.lastName} nickname={ticket.assignee.nickname} email={ticket.assignee.email} avatarUrl={ticket.assignee.avatarUrl} />
+                        <span className="text-xs text-gray-600 truncate">{agentNameMap[ticket.assignee.id] || fullDisplayName(ticket.assignee) || ticket.assignee.email}</span>
+                      </span>
+                    ) : <span className="text-xs text-gray-300">Nincs felelős</span>}
+                    <span className="text-xs text-gray-400 ml-auto shrink-0">{formatRelativeTime(ticket.updatedAt)}</span>
                   </div>
                 </Link>
               ))}
